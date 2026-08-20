@@ -22,7 +22,7 @@ export const adminApi = {
       ? mockApi.listEvents()
       : http.get('/admin/events').then((res) => res.data),
 
-  getEvent: (eventId: string): Promise<CouponEvent | undefined> =>
+  getEvent: (eventId: string): Promise<CouponEvent | null> =>
     useMock
       ? mockApi.getEvent(eventId)
       : http.get(`/admin/events/${eventId}`).then((res) => res.data),
@@ -32,8 +32,8 @@ export const adminApi = {
       ? mockApi.createEvent(input)
       : http.post('/admin/events', input).then((res) => res.data),
 
-  /** 이벤트당 실행은 최대 1건 — 없으면 undefined */
-  getIssueRun: (eventId: string): Promise<IssueRun | undefined> =>
+  /** 이벤트당 실행은 최대 1건 — 없으면 null */
+  getIssueRun: (eventId: string): Promise<IssueRun | null> =>
     useMock
       ? mockApi.getIssueRun(eventId)
       : http.get(`/admin/events/${eventId}/run`).then((res) => res.data),
@@ -44,6 +44,12 @@ export const adminApi = {
       : http
           .post(`/admin/events/${eventId}/run`, { requestCount })
           .then((res) => res.data),
+
+  /** 실행/발급/검증 이력을 모두 지워 이벤트를 다시 실행 가능한 상태로 되돌린다 (테스트 용도) */
+  resetEvent: (eventId: string): Promise<void> =>
+    useMock
+      ? mockApi.resetEvent(eventId)
+      : http.delete(`/admin/events/${eventId}/run`).then(() => undefined),
 
   listCoupons: (eventId: string, page: number, size: number): Promise<Page<IssuedCoupon>> =>
     useMock

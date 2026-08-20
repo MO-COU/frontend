@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { RotateCcwIcon } from 'lucide-react'
 
-import { useIssueRun, useTriggerRun } from '@/hooks/useIssueRuns'
+import { useIssueRun, useResetEvent, useTriggerRun } from '@/hooks/useIssueRuns'
 import { formatKstDateTime } from '@/lib/dateUtils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,12 +22,20 @@ import { RunStatusBadge } from '@/features/events/components/RunStatusBadge'
 export function RunTab({ eventId }: { eventId: string }) {
   const [requestCount, setRequestCount] = useState(1000)
   const [open, setOpen] = useState(false)
+  const [resetOpen, setResetOpen] = useState(false)
   const { data: run, isLoading } = useIssueRun(eventId)
   const triggerRun = useTriggerRun(eventId)
+  const resetEvent = useResetEvent(eventId)
 
   const handleConfirm = () => {
     triggerRun.mutate(requestCount, {
       onSuccess: () => setOpen(false),
+    })
+  }
+
+  const handleReset = () => {
+    resetEvent.mutate(undefined, {
+      onSuccess: () => setResetOpen(false),
     })
   }
 
@@ -38,9 +47,40 @@ export function RunTab({ eventId }: { eventId: string }) {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {!isLoading && run && (
-            <p className="text-sm text-muted-foreground">
-              이 이벤트는 이미 실행되었습니다. 이벤트당 실행은 1회만 가능합니다.
-            </p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-muted-foreground">
+                이 이벤트는 이미 실행되었습니다. 이벤트당 실행은 1회만 가능합니다.
+              </p>
+              <Dialog open={resetOpen} onOpenChange={setResetOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="destructive" size="sm" disabled={resetEvent.isPending}>
+                    <RotateCcwIcon /> 초기화
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>초기화 확인</DialogTitle>
+                    <DialogDescription>
+                      이벤트 <span className="font-medium">{eventId}</span>의 실행 결과, 발급된
+                      쿠폰 리스트, 정합성 검증 이력을 모두 삭제합니다. 초기화만 수행하며, 발급을
+                      다시 실행하려면 이후 [발급 실행] 버튼을 별도로 눌러야 합니다. 계속하시겠습니까?
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setResetOpen(false)}>
+                      취소
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleReset}
+                      disabled={resetEvent.isPending}
+                    >
+                      {resetEvent.isPending ? '초기화 중...' : '초기화'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           )}
           <div className="flex items-end gap-3">
             <div className="flex flex-col gap-1.5">

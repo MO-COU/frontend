@@ -146,9 +146,9 @@ export const mockApi = {
     return delay(events.map((e) => ({ ...e, status: deriveEventStatus(e.startAt) })))
   },
 
-  async getEvent(eventId: string): Promise<CouponEvent | undefined> {
+  async getEvent(eventId: string): Promise<CouponEvent | null> {
     const event = events.find((e) => e.id === eventId)
-    return delay(event ? { ...event, status: deriveEventStatus(event.startAt) } : undefined)
+    return delay(event ? { ...event, status: deriveEventStatus(event.startAt) } : null)
   },
 
   async createEvent(input: CreateEventInput): Promise<CouponEvent> {
@@ -164,14 +164,15 @@ export const mockApi = {
     return delay(event, 500)
   },
 
-  async getIssueRun(eventId: string): Promise<IssueRun | undefined> {
-    return delay(runByEvent[eventId])
+  async getIssueRun(eventId: string): Promise<IssueRun | null> {
+    return delay(runByEvent[eventId] ?? null)
   },
 
   async triggerRun(eventId: string, requestCount: number): Promise<IssueRun> {
     if (runByEvent[eventId]) {
       throw new Error('이 이벤트는 이미 실행되었습니다. 이벤트당 실행은 1회만 가능합니다.')
     }
+    const startedAt = new Date().toISOString()
     const run: IssueRun = {
       runId: `run-${eventId}`,
       eventId,
@@ -179,11 +180,28 @@ export const mockApi = {
       requestedCount: requestCount,
       issuedCount: requestCount,
       failedCount: 0,
-      startedAt: new Date().toISOString(),
-      finishedAt: new Date().toISOString(),
+      startedAt,
+      finishedAt: startedAt,
     }
     runByEvent[eventId] = run
+    couponsByEvent[eventId] = makeCoupons(eventId, requestCount, startedAt)
+
+    const event = events.find((e) => e.id === eventId)
+    if (event) event.remainingStock = Math.max(0, event.remainingStock - requestCount)
+
     return delay(run, 800)
+  },
+
+  /** 실행/발급/검증 데이터를 모두 지워 이벤트를 다시 실행 가능한 상태로 되돌린다 (테스트 용도) */
+  async resetEvent(eventId: string): Promise<void> {
+    delete runByEvent[eventId]
+    delete couponsByEvent[eventId]
+    delete consistencyBatchesByEvent[eventId]
+
+    const event = events.find((e) => e.id === eventId)
+    if (event) event.remainingStock = event.totalStock
+
+    return delay(undefined, 500)
   },
 
   async listCoupons(
