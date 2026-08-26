@@ -1,87 +1,231 @@
 /**
- * 관리자 API 명세가 확정되면 이 파일을 실제 스펙에 맞춰 갱신한다.
- * 현재는 backend README(팀 B/A 도메인: coupon, issue, lifecycle, consistency)를 기준으로 한 임시 계약이다.
+ * 백엔드(com.mocou) 실제 DTO에 1:1로 맞춘 타입.
+ * 추측이 아니라 컨트롤러/레코드 원본을 읽고 옮긴 것이므로, 백엔드가 바뀌면 여기도 같이 바꾼다.
  */
 
-/** 예정(미래 주) / 진행중(이번 주, 소진 여부 무관) / 종료(지난 주) */
-export type CouponEventStatus = 'SCHEDULED' | 'OPEN' | 'CLOSED'
-
-export interface CouponEvent {
-  id: string
-  name: string
-  totalStock: number
-  remainingStock: number
-  startAt: string
-  /** 서버(coupon.status)가 관리하는 값. 프론트에서 다시 계산하지 않고 그대로 사용한다 */
-  status: CouponEventStatus
+/** 모든 응답을 감싸는 공통 봉투 (global/response/ApiResponse.java) */
+export interface ApiEnvelope<T> {
+  success: boolean
+  data: T | null
+  error: ApiErrorBody | null
+  traceId: string
+  timestamp: string
 }
 
-export interface CreateEventInput {
-  name: string
-  totalStock: number
-  startAt: string
+export interface ApiErrorBody {
+  code: string
+  message: string
 }
+
+// ───────────────────────── 쿠폰(회차) 목록 ─────────────────────────
+// GET  /api/admin/coupons  → admin/AdminCouponSummary.java
+// POST /api/admin/coupons  → coupon/CouponRoundController.java
+
+/**
+ * coupon.status.
+ * 회차 생성 API는 항상 OPEN으로 만든다 — 오픈 전 발급 차단은 Redis Lua가 하므로 SCHEDULED가 없어도
+ * 효과가 같고, 전환 주체가 없으면 동기화 컨슈머가 멈추기 때문이다. SCHEDULED는 시더가 만든 과거
+ * 데이터에만 남아 있을 수 있어 타입에는 남겨둔다.
+ */
+export type CouponStatus = 'SCHEDULED' | 'OPEN' | 'CLOSED'
+
+export interface AdminCouponSummary {
+  couponId: number
+  name: string
+  openAt: string
+  closeAt: string
+  totalQuantity: number
+  status: CouponStatus
+}
+
+/**
+ * 회차 추가 요청 (coupon/CouponRoundRequest.java).
+ * closeAt을 비우면 openAt 당일 23:59:59, name을 비우면 "아메리카노 무료 쿠폰 {N}회차"로 서버가 채운다.
+ */
+export interface CreateCouponInput {
+  totalQuantity: number
+  openAt: string
+  closeAt?: string
+  name?: string
+}
+
+/** 회차 추가 응답 (coupon/CouponRoundResponse.java). 응답이 왔다면 Redis 초기화까지 끝난 것이다. */
+export interface CreatedCoupon {
+  couponId: number
+  name: string
+  openAt: string
+  closeAt: string
+  totalQuantity: number
+}
+
+// ───────────────────────── 재고 ─────────────────────────
+// GET /api/admin/coupons/{couponId}/stock → admin/AdminCouponStock.java
+
+export interface AdminCouponStock {
+  couponId: number
+  couponName: string
+  openAt: string
+  totalQuantity: number
+  /** 실시간(Redis) 발급 수 = totalQuantity - remainingQuantity */
+  issuedQuantity: number
+  /** DB에 실제로 적재된 발급 건수 */
+  dbIssuedQuantity: number
+  /** issuedQuantity - dbIssuedQuantity. Redis→DB 동기화가 아직 안 끝난 건수 */
+  syncGapQuantity: number
+  /** 실시간(Redis) 잔여 재고 */
+  remainingQuantity: number
+  status: CouponStatus
+  updatedAt: string
+}
+
+// ─────────────────────── 발급 리스트 ───────────────────────
+// GET /api/admin/coupons/{couponId}/issues → admin/AdminCouponIssuePage.java
+
+/** coupon_issue.status (V5에서 UNISSUED 확정) */
+export type CouponIssueStatus = 'UNISSUED' | 'ISSUED' | 'USED' | 'EXPIRED'
+
+export interface AdminCouponIssue {
+  issueId: number
+  couponId: number
+  memberId: number
+  /** MaskingUtils로 마스킹되어 내려옴 */
+  memberName: string
+  memberEmail: string
+  memberPhone: string
+  status: CouponIssueStatus
+  issuedAt: string
+  usedAt: string | null
+  expiresAt: string
+}
+
+export interface AdminCouponIssuePage {
+  content: AdminCouponIssue[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  hasNext: boolean
+}
+
+// ──────────────────────── 정합성 검증 ────────────────────────
+// POST /api/admin/verifications, GET /api/admin/verifications/{runId}
+// → consistency/VerificationRule.java 외
+
+/** 검증 규칙 8종 (consistency/VerificationRule.java) */
+export type VerificationRuleName =
+  | 'DUPLICATE_ISSUE'
+  | 'OVER_ISSUE'
+  | 'STOCK_MISMATCH'
+  | 'ORPHAN_REFERENCE'
+  | 'STATE_TIMESTAMP_MISMATCH'
+  | 'HISTORY_MISMATCH'
+  | 'TOOL_RELIABILITY'
+  | 'REDIS_DB_MISMATCH'
+
+/** 규칙이 끝까지 실행됐는지. FAILED면 위반 0건이어도 "정상"이 아니다 */
+export type RuleStatus = 'CHECKED' | 'FAILED'
+
+/** 전체 판정. ERROR는 규칙 실행 실패로 판정 자체가 불가한 경우 */
+export type Verdict = 'PASS' | 'FAIL' | 'ERROR'
+
+/** finished_at이 NULL이면 RUNNING (서버가 문자열로 계산해서 내려줌) */
+export type VerificationStatus = 'RUNNING' | 'COMPLETED'
+
+/** consistency/ViolationTarget.java */
+export type ViolationTargetType =
+  | 'COUPON'
+  | 'MEMBER'
+  | 'COUPON_ISSUE'
+  | 'COUPON_ISSUE_HISTORY'
+  | 'COUPON_STOCK'
+  | 'COUPON_MEMBER_PAIR'
+
+export interface VerificationViolation {
+  violationId: number
+  targetType: ViolationTargetType
+  targetId: number | null
+  targetId2: number | null
+  detail: string
+}
+
+export interface VerificationRuleResult {
+  ruleResultId: number
+  ruleName: VerificationRuleName
+  status: RuleStatus
+  checkedCount: number
+  violationCount: number
+  /** status === 'CHECKED'면 null */
+  failureReason: string | null
+  violations: VerificationViolation[]
+}
+
+export interface VerificationResult {
+  runId: number
+  /** null이면 DB 전체(더미데이터 포함) 대상 검증 */
+  issueRunId: number | null
+  status: VerificationStatus
+  /** 진행 중이면 null */
+  verdict: Verdict | null
+  snapshotAt: string | null
+  startedAt: string
+  finishedAt: string | null
+  checkedCount: number
+  violationCount: number
+  rules: VerificationRuleResult[]
+}
+
+export interface VerificationStartResponse {
+  runId: number
+  message: string
+}
+
+// ─────────────────────── 부하테스트 리셋 ───────────────────────
+// POST /api/admin/load-test/reset → loadtest/LoadTestResetResult.java
+// 파라미터 없음 — 서버가 "현재 OPEN인 쿠폰"을 스스로 찾는다(1개가 아니면 409).
+
+export interface LoadTestResetResult {
+  couponId: number
+  deletedIssues: number
+  deletedHistories: number
+  deletedFailureLogs: number
+  deletedNotifications: number
+  deletedVerificationRuns: number
+  /** 삭제 건수가 아니라 복구한 잔여 재고 값 */
+  restoredStock: number
+}
+
+// ─────────────────────── 부하테스트 실행 ───────────────────────
+// ⚠️ 백엔드 미구현. 필드는 V8__coupon_issue_run_scenario_columns.sql 컬럼을 그대로 따랐다.
+// 실제 엔드포인트가 생기면 adminApi.ts의 경로만 맞추면 된다.
 
 export type IssueRunStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED'
 
-/**
- * 발급 실행(부하테스트) 결과. 이벤트당 최대 1회만 실행할 수 있다(1 event : 1 run) —
- * 그래서 이벤트(coupon_id)와 실행이 사실상 동일한 대상을 가리키고, 정합성 검증도
- * 별도 실행 이력 테이블 없이 이벤트 단위로 스코프될 수 있다.
- * requestedCount(동시 요청 수)는 이벤트에 저장된 값이 아니라 실행 시점에 입력하는 파라미터다
- * — 실제 동시 접속자 수는 미리 알 수 없기 때문.
- */
-export interface IssueRun {
-  runId: string
-  eventId: string
-  status: IssueRunStatus
+/** 실행 시작 시 채우는 조건 컬럼 (V8) */
+export interface StartLoadTestInput {
+  scenarioVersion: string
+  vus: number
+  rampUpSeconds: number
+}
+
+/** coupon_issue_run 한 행 */
+export interface CouponIssueRun {
+  runId: number
+  couponId: number
+  scenarioVersion: string | null
+  vus: number | null
+  rampUpSeconds: number | null
   requestedCount: number
   issuedCount: number
   failedCount: number
+  /** 재고 소진으로 거절 */
+  soldOutCount: number
+  /** 중복 발급으로 거절 */
+  duplicateCount: number
+  /** 5xx 등 예상 못한 실패 */
+  errorCount: number
+  /** 응답시간 95백분위(ms). 측정 전 null */
+  p95Ms: number | null
+  status: IssueRunStatus
   startedAt: string
   finishedAt: string | null
-}
-
-export type IssuedCouponStatus = 'ISSUED' | 'USED' | 'EXPIRED' | 'CANCELLED'
-
-export interface IssuedCoupon {
-  /** coupon_issue_id. 별도 쿠폰 코드 컬럼 없이 이 값을 식별자로 사용한다 */
-  id: string
-  eventId: string
-  userId: string
-  status: IssuedCouponStatus
-  issuedAt: string
-}
-
-export interface Page<T> {
-  content: T[]
-  totalElements: number
-  totalPages: number
-  page: number
-  size: number
-}
-
-/** 정합성 검증 3종: 재고 일치 / 중복 발급(1인 1매) / 상태 전이 무결성 */
-export type ConsistencyCheckType = 'STOCK_MATCH' | 'DUPLICATE_ISSUE' | 'STATE_TRANSITION'
-
-export interface ConsistencyCheckResult {
-  id: string
-  checkType: ConsistencyCheckType
-  isConsistent: boolean
-  expectedValue: number
-  actualValue: number
-  mismatchDetail: string | null
-}
-
-/**
- * 하나의 발급 실행(IssueRun.runId)을 대상으로 한 정합성 검증 1회 실행분.
- * 이벤트당 실행이 1개뿐이므로 runId는 사실상 eventId와 1:1이다.
- * 같은 runId에 대해 검증을 여러 번 실행할 수 있다(1 run : N 검증).
- */
-export interface ConsistencyCheckBatch {
-  batchId: string
-  runId: string
-  eventId: string
-  checkedAt: string
-  results: ConsistencyCheckResult[]
 }
