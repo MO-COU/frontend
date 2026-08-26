@@ -1,7 +1,7 @@
 # MOCOU - Frontend
 
 대규모 트래픽 환경에서 초과 발급 0건 · 1인 1매 · 정합성을 보장하는 선착순 쿠폰 발급 시스템의
-**관리자 대시보드**. 로그인 화면 없이 이벤트별 [실행] · [리스트] · [정합성] 검증 화면으로 구성된다.
+**관리자 대시보드**. 로그인 없이 쿠폰별 [실행] · [리스트] · [정합성] 화면으로 구성된다.
 
 ## 기술 스택
 
@@ -10,11 +10,8 @@
 | 언어/빌드 | TypeScript, Vite |
 | 프레임워크 | React 19 |
 | 라우팅 | React Router |
-| 서버 상태 | TanStack Query |
-| 테이블 | TanStack Table v8 |
+| 서버 상태 | TanStack Query (폴링) |
 | 스타일 | Tailwind CSS v4 + shadcn 스타일 UI 프리미티브(직접 구현) |
-| 차트 | Recharts |
-| 폼/검증 | React Hook Form + Zod |
 | HTTP | Axios |
 | 토스트 | sonner |
 
@@ -23,82 +20,94 @@
 ```
 src/
 ├── api/
-│   └── adminApi.ts          # 관리자 API 진입점. VITE_USE_MOCK에 따라 mock ↔ 실제 axios 호출 분기
-│                             # → 실제 API 명세가 나오면 이 파일의 엔드포인트 경로만 교체하면 됨
-│
-├── mocks/
-│   └── data.ts               # 백엔드 없이 화면을 검증하기 위한 목데이터 + 목 API 구현
+│   └── adminApi.ts            # 관리자 API 진입점. 경로는 백엔드 컨트롤러를 그대로 옮긴 것
 │
 ├── types/
-│   └── domain.ts             # CouponEvent / IssueRun / IssuedCoupon / ConsistencyCheckBatch 등 DTO 계약
-│                             # → 실제 API 명세에 맞춰 갱신 대상
+│   └── domain.ts              # 백엔드 DTO(record)에 1:1로 맞춘 타입
 │
-├── hooks/                    # TanStack Query 훅 (기능별로 분리, adminApi만 호출)
-│   ├── useEvents.ts           # 이벤트 목록/상세 조회, 새 이벤트 생성
-│   ├── useIssueRuns.ts        # 이벤트의 실행(최대 1건) 조회, 발급 실행 트리거
-│   ├── useCoupons.ts          # 발급 리스트(DB 조회) 페이지네이션
-│   └── useConsistencyCheck.ts # 이벤트 단위 정합성 검증 이력 조회 및 실행
+├── hooks/                     # TanStack Query 훅 (adminApi만 호출)
+│   ├── useCoupons.ts           # 쿠폰 목록 조회 / 생성
+│   ├── useStock.ts             # 실시간 재고 폴링 (부하테스트 중 1초, 평소 5초)
+│   ├── useIssues.ts            # 발급 리스트 페이지네이션
+│   ├── useLoadTest.ts          # 부하테스트 실행/최근 실행 조회/초기화
+│   └── useVerification.ts      # 정합성 검증 시작 + 완료까지 2초 폴링
 │
 ├── lib/
-│   ├── http.ts                # axios 인스턴스 (baseURL: VITE_API_BASE_URL)
-│   ├── dateUtils.ts           # KST 기준 "이번 주" 계산, 예정/진행중/종료 상태 도출, 날짜 포맷
-│   └── utils.ts               # cn() (clsx + tailwind-merge)
+│   ├── http.ts                 # axios + ApiResponse 봉투 해제 + ApiError 변환
+│   ├── dateUtils.ts            # 타임존 없는 LocalDateTime을 KST로 읽어 포맷
+│   ├── lastCoupon.ts           # 마지막으로 본 couponId 기억
+│   └── utils.ts                # cn() (clsx + tailwind-merge)
 │
 ├── components/
-│   ├── ui/                    # shadcn 스타일 프리미티브 (button, card, table, tabs, dialog, select ...)
-│   └── layout/
-│       └── AppShell.tsx       # 상단 헤더 + 라우터 Outlet을 감싸는 공통 레이아웃
+│   ├── ui/                     # shadcn 스타일 프리미티브 (button, card, table, tabs, dialog, meter ...)
+│   └── layout/AppShell.tsx     # 상단 헤더 + 라우터 Outlet
 │
-├── features/                  # 도메인별 화면 조각 (페이지에서 조합해서 사용)
-│   ├── events/components/
-│   │   ├── EventStatusBadge.tsx     # 예정/진행중/종료 배지
-│   │   ├── RunStatusBadge.tsx       # 실행 상태 배지
-│   │   ├── EventGalleryView.tsx     # 대시보드 갤러리(카드) 뷰
-│   │   ├── EventListView.tsx        # 대시보드 리스트(테이블) 뷰
-│   │   ├── CreateEventDialog.tsx    # 새 이벤트 생성 폼 다이얼로그
-│   │   ├── RunTab.tsx               # [실행] 탭: 동시 요청 수 입력 → 발급 실행(이벤트당 1회) → 실행 결과
-│   │   └── ListTab.tsx              # [리스트] 탭: 발급된 쿠폰 DB 조회 테이블
+├── features/
+│   ├── coupon/components/
+│   │   ├── CouponGalleryView.tsx    # 대시보드 갤러리(카드) 뷰
+│   │   ├── CouponListView.tsx       # 대시보드 리스트(테이블) 뷰
+│   │   ├── CreateCouponDialog.tsx   # 쿠폰 추가 폼 (회차·종료일시는 선택)
+│   │   ├── StockPanel.tsx           # 실시간 재고: 히어로 수치 + 미터 + KPI 타일 4개
+│   │   └── CouponStatusBadge.tsx    # SCHEDULED / OPEN / CLOSED
+│   ├── loadtest/components/
+│   │   ├── LoadTestTab.tsx          # [실행] 탭: 시나리오·VU·ramp-up 입력 → 시작, 초기화, 실행 결과
+│   │   └── RunStatusBadge.tsx
+│   ├── issues/components/
+│   │   ├── IssueListTab.tsx         # [리스트] 탭: 발급 건(회원정보는 서버에서 마스킹되어 옴)
+│   │   └── IssueStatusBadge.tsx     # UNISSUED / ISSUED / USED / EXPIRED
 │   └── consistency/components/
-│       ├── ConsistencyTab.tsx        # [정합성] 탭: 이 이벤트의 실행을 대상으로 검증 실행 → 검증 이력(N회)
-│       └── ConsistencyResultCard.tsx # 검증 1건(재고 일치/1인 1매/상태 전이) 카드 + 막대그래프
+│       ├── ConsistencyTab.tsx       # [정합성] 탭: 검증 시작 → 폴링 → 규칙별 결과
+│       ├── RuleResultCard.tsx       # 규칙 1종 결과 + 위반 상세 드릴다운
+│       └── VerdictBadge.tsx         # PASS / FAIL / ERROR / 진행중
 │
 ├── pages/
-│   ├── DashboardPage.tsx      # "/" 이벤트 목록 (갤러리 ↔ 리스트 토글, 새 이벤트 생성)
-│   └── EventDetailPage.tsx    # "/events/:eventId" 이벤트 상세 (실행/리스트/정합성 탭)
+│   ├── DashboardPage.tsx       # "/" 쿠폰 목록 (갤러리 ↔ 리스트 토글, 쿠폰 추가, 목록 실패 시 ID 폴백)
+│   └── CouponDetailPage.tsx    # "/coupons/:couponId" 재고 패널 + 3개 탭
 │
-├── App.tsx                   # 라우트 정의
-├── main.tsx                  # QueryClientProvider, BrowserRouter, Toaster 부트스트랩
-└── index.css                 # Tailwind 진입점 + 디자인 토큰(CSS 변수)
+├── App.tsx / main.tsx / index.css
 ```
 
-## 데이터 흐름
+## 연동한 백엔드 API
 
-```
-Page (DashboardPage / EventDetailPage)
-  → feature 컴포넌트 (RunTab, ListTab, ConsistencyTab ...)
-    → hooks/use*.ts (TanStack Query)
-      → api/adminApi.ts
-        → VITE_USE_MOCK=true  → mocks/data.ts (메모리 목데이터)
-        → VITE_USE_MOCK=false → lib/http.ts (axios) → 실제 백엔드
-```
+| 화면 | Method + Path | 백엔드 |
+|---|---|---|
+| 대시보드 목록 | `GET /api/admin/coupons` | `admin/AdminCouponController` |
+| 쿠폰 추가 | `POST /api/admin/coupons` | `coupon/CouponRoundController` |
+| 재고 패널 | `GET /api/admin/coupons/{couponId}/stock` | `admin/AdminCouponController` |
+| [리스트] | `GET /api/admin/coupons/{couponId}/issues?page=&size=` | 〃 |
+| [정합성] 시작 | `POST /api/admin/verifications?issueRunId=` | `consistency/VerificationController` |
+| [정합성] 조회 | `GET /api/admin/verifications/{runId}` | 〃 |
+| [실행] 초기화 | `POST /api/admin/load-test/reset?couponId=` | `loadtest/LoadTestResetController` |
+| [실행] 시작 | `POST /api/admin/coupons/{couponId}/load-test` | ⚠️ **백엔드 미구현** |
+| [실행] 최근 실행 | `GET /api/admin/coupons/{couponId}/load-test/latest` | ⚠️ **백엔드 미구현** |
 
-- **화면과 API 연동 지점이 `adminApi.ts` 한 파일로 좁혀져 있어**, 관리자 API 명세서가 확정되면
-  이 파일의 엔드포인트/파라미터와 `types/domain.ts`의 DTO만 맞추면 나머지 코드는 그대로 동작한다.
-- **이벤트 상태(예정/진행중/종료)는 서버(`coupon.status`)가 관리하는 값을 그대로 쓴다.** 프론트는
-  계산하지 않는다 — `lib/dateUtils.ts`의 `deriveEventStatus`는 백엔드 없이 화면을 보기 위해
-  `mocks/data.ts`에서만 상태를 흉내내는 용도이고, 실제 API 연동 시엔 사용되지 않는다.
-- **"동시 요청 수"는 이벤트에 저장되는 값이 아니다.** 실제 동시 접속자 수는 미리 알 수 없으므로,
-  [실행] 탭에서 발급을 트리거할 때마다 입력하는 파라미터로만 존재한다 (부하테스트 도구에 넘기는 값과 같은 성격).
-- **이벤트당 발급 실행(`IssueRun`)은 최대 1건이다.** 이미 실행된 이벤트는 [실행] 탭에서 재실행이
-  막힌다 (mock도 동일 규칙으로 재요청 시 에러를 던진다). 실행이 이벤트와 1:1이므로 별도의 "실행
-  이력" 테이블 없이 이벤트(`coupon_id`) 자체가 곧 그 실행을 가리키는 키가 된다.
-- 정합성 검증은 **이벤트 단위**로 스코프된다 — "이 이벤트의 실행이 초과발급 없이 정합했는가"를
-  검증하는 것이 목적이라, 실행이 없는 이벤트는 검증 자체가 불가능하고([실행] 먼저 요구),
-  같은 실행에 대해 여러 번 검증을 반복할 수 있다 (`ConsistencyCheckBatch`가 검증 1회 실행분,
-  그 안에 재고 일치 / 1인 1매 / 상태 전이 3종 결과가 담김). 실행이 1:1이라 별도 선택 UI(드롭다운)도
-  없다. 백엔드의 `verification_run`도 `coupon_id` FK 하나로 스코프된다
-  (`backend/.../db/migration/V4__verification_run_add_coupon_reference.sql`).
-- 발급 리스트의 식별자는 별도 "쿠폰 코드" 컬럼 없이 `coupon_issue_id`(`IssuedCoupon.id`)를 그대로 쓴다.
+사용자용 API(`POST /api/coupons/{couponId}/issues`, `POST /api/coupon-issues/{issueId}/use`)는
+관리자 화면에서 쓰지 않아 연동하지 않았다.
+
+## 알아둘 것
+
+- **모든 응답은 `ApiResponse` 봉투**(`{success, data, error, traceId, timestamp}`)로 온다.
+  `lib/http.ts` 인터셉터가 한 번만 벗겨내므로, API 함수와 화면은 알맹이만 다룬다.
+  에러는 백엔드 `ErrorCode`를 담은 `ApiError`로 바뀌어 던져진다.
+- **쿠폰 생성 요청은 `{ totalQuantity, openAt, closeAt?, name? }`다.** `closeAt`을 비우면 오픈 당일
+  23:59:59, `name`을 비우면 `"아메리카노 무료 쿠폰 {N}회차"`로 서버가 채운다. 응답이 왔다는 것은
+  Redis 초기화까지 끝났다는 뜻이라 바로 발급이 가능하다.
+- **생성되는 회차의 상태는 항상 `OPEN`이다.** 오픈 전 발급 차단은 Redis Lua가 하므로 `SCHEDULED`가
+  없어도 효과가 같고, 전환 주체가 없으면 동기화 컨슈머가 멈춘다. `SCHEDULED`는 시더가 만든 과거
+  데이터에만 남아 있다.
+- **초기화는 `couponId`를 보낸다.** 종료된 회차를 지목하면 `LOAD_TEST_TARGET_CLOSED`(409)로 거부되어,
+  검증 대상인 과거 발급 데이터가 실수로 사라지지 않는다.
+- 목록 조회가 실패하면 에러 문구와 함께 "ID로 바로 열기" 폴백을 보여준다.
+- **재고는 세 가지 수치를 구분해서 보여준다** — `issuedQuantity`(실시간 Redis),
+  `dbIssuedQuantity`(실제 DB 적재), `syncGapQuantity`(아직 반영 안 된 차이).
+  동기화 지연이 남아 있으면 초기화가 `LOAD_TEST_SYNC_IN_PROGRESS`로 거부된다.
+- **정합성 검증은 비동기다.** `POST`는 `runId`만 주고 202로 끝나며, 완료까지 1~2분 걸린다.
+  화면은 `runId`를 localStorage에 남겨두고 2초마다 폴링한다. 탭이 숨어도 폴링이 멈추지 않도록
+  `refetchIntervalInBackground: true`를 켜뒀다 — 끄면 다른 탭을 보고 온 사이 "검증 중"에 멈춘다.
+- **초기화는 검증 이력까지 지운다.** 그래서 들고 있던 `runId`가 죽을 수 있는데,
+  `VERIFICATION_RUN_NOT_FOUND`가 오면 에러를 띄우는 대신 조용히 버린다.
+- **재실행 차단은 "실행 중일 때만"이다.** DB의 `UNIQUE(coupon_id)` 제약은 V6에서 제거됐다
+  (동일 조건 반복 실행이 증명 대상이라서). 프론트도 `RUNNING` 동안만 버튼을 막는다.
 
 ## 실행
 
@@ -106,8 +115,7 @@ Page (DashboardPage / EventDetailPage)
 npm install
 npm run dev      # http://localhost:5173, /api 요청은 localhost:8080으로 프록시
 npm run build    # tsc -b && vite build
-npm run lint      # oxlint
+npm run lint     # oxlint
 ```
 
-`.env`의 `VITE_USE_MOCK=true`(기본값)면 백엔드 없이 목데이터로 전체 화면이 동작한다.
-실제 API 연동 시 `.env`에서 `VITE_USE_MOCK=false`로 바꾸고 `VITE_API_BASE_URL`을 지정한다.
+백엔드가 함께 떠 있어야 한다 (`cd ../backend && ./gradlew bootRun`, MySQL/Redis는 docker compose).
