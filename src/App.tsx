@@ -1,15 +1,16 @@
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 
 import { AppShell } from '@/components/layout/AppShell'
+import { CouponDetailPage } from '@/pages/CouponDetailPage'
 import { DashboardPage } from '@/pages/DashboardPage'
-import { EventDetailPage } from '@/pages/EventDetailPage'
 
 function App() {
   return (
     <Routes>
       <Route element={<AppShell />}>
         <Route path="/" element={<DashboardPage />} />
-        <Route path="/events/:eventId" element={<EventDetailPage />} />
+        <Route path="/coupons/:couponId" element={<CouponDetailPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   )
