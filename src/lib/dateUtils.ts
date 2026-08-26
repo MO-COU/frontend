@@ -1,70 +1,34 @@
-import type { CouponEventStatus } from '@/types/domain'
-
-const KST_OFFSET_MS = 9 * 60 * 60 * 1000
-const DAY_MS = 24 * 60 * 60 * 1000
-
-/** epoch day 0 (1970-01-01) was a Thursday → Mon=0 ... Sun=6 */
-function kstWeekday(iso: string): number {
-  const epochDay = Math.floor((new Date(iso).getTime() + KST_OFFSET_MS) / DAY_MS)
-  return ((epochDay % 7) + 7 + 3) % 7
-}
-
-function kstWeekStartEpochDay(date: Date): number {
-  const epochDay = Math.floor((date.getTime() + KST_OFFSET_MS) / DAY_MS)
-  const weekday = ((epochDay % 7) + 7 + 3) % 7
-  return epochDay - weekday
-}
-
-function pad(n: number) {
-  return String(n).padStart(2, '0')
-}
-
-/** "YYYY-MM-DD" (KST 기준 달력일)의 오전 10시 KST를 ISO 문자열로 */
-export function kstIsoAt10(year: number, month1: number, day: number): string {
-  return `${year}-${pad(month1)}-${pad(day)}T10:00:00+09:00`
-}
-
-/** 해당 월(KST 기준)의 월요일 날짜들을 최대 n개까지, 이른 순으로 반환 */
-export function getFirstNMondaysOfMonth(year: number, month1: number, n = 4): string[] {
-  const daysInMonth = new Date(year, month1, 0).getDate()
-  const mondays: string[] = []
-  for (let day = 1; day <= daysInMonth && mondays.length < n; day++) {
-    const iso = kstIsoAt10(year, month1, day)
-    if (kstWeekday(iso) === 0) mondays.push(iso)
-  }
-  return mondays
+/**
+ * 백엔드는 LocalDateTime을 타임존 없는 문자열("2026-08-26T10:00:00")로 내려준다.
+ * 서버가 Asia/Seoul로 동작하므로 그 값을 KST 벽시계 시각으로 읽는다.
+ */
+function toDate(value: string): Date {
+  // 타임존 표기가 없으면 KST로 간주한다. 브라우저 로컬 타임존에 따라 값이 밀리는 것을 막는다.
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value)
+  return new Date(hasZone ? value : `${value}+09:00`)
 }
 
 /**
- * 이벤트 시작 시각이 속한 KST 주(월~일)를 기준으로 상태를 계산한다.
- * - 미래 주 → SCHEDULED(예정)
- * - 이번 주 → OPEN(진행중), 재고 소진 여부와 무관
- * - 지난 주 → CLOSED(종료)
+ * <input type="datetime-local">이 주는 "2026-08-26T10:00"을 백엔드 LocalDateTime 형식으로 맞춘다.
+ * 타임존을 붙이지 않는다 — 서버가 Asia/Seoul로 돌아 벽시계 값을 그대로 받는다.
  */
-export function deriveEventStatus(
-  startAtIso: string,
-  now: Date = new Date(),
-): CouponEventStatus {
-  const eventWeekStart = kstWeekStartEpochDay(new Date(startAtIso))
-  const nowWeekStart = kstWeekStartEpochDay(now)
-  if (eventWeekStart > nowWeekStart) return 'SCHEDULED'
-  if (eventWeekStart === nowWeekStart) return 'OPEN'
-  return 'CLOSED'
+export function toLocalDateTimeString(datetimeLocalValue: string): string {
+  return datetimeLocalValue.length === 16
+    ? `${datetimeLocalValue}:00`
+    : datetimeLocalValue
 }
 
-export function formatKstDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('ko-KR', {
+export function formatKstDateTime(value: string): string {
+  const date = toDate(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  return date.toLocaleString('ko-KR', {
     timeZone: 'Asia/Seoul',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-    weekday: 'short',
     hour: '2-digit',
     minute: '2-digit',
+    second: '2-digit',
   })
-}
-
-/** <input type="datetime-local"> 값(로컬 벽시계, 타임존 없음)을 KST 벽시계로 간주해 ISO로 변환 */
-export function datetimeLocalToKstIso(value: string): string {
-  return `${value}:00+09:00`
 }
