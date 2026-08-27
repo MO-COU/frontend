@@ -1,6 +1,7 @@
 import { http } from '@/lib/http'
 import type {
   AdminCouponIssuePage,
+  AdminCouponIssueResultCounts,
   AdminCouponStock,
   AdminCouponSummary,
   CouponIssueRun,
@@ -29,6 +30,10 @@ export const adminApi = {
   // ── admin/AdminCouponController ──────────────────────────
   getStock: (couponId: number): Promise<AdminCouponStock> =>
     http.get(`/admin/coupons/${couponId}/stock`).then((res) => res.data),
+
+  /** Redis 발급 결과 누적값 + DB 적재 진행 (PR #126, #135) */
+  getIssueResultCounts: (couponId: number): Promise<AdminCouponIssueResultCounts> =>
+    http.get(`/admin/coupons/${couponId}/issue-result-counts`).then((res) => res.data),
 
   getIssues: (couponId: number, page: number, size: number): Promise<AdminCouponIssuePage> =>
     http

@@ -179,6 +179,38 @@ export interface VerificationStartResponse {
   message: string
 }
 
+// ─────────────────── 발급 결과 + DB 적재 진행 ───────────────────
+// GET /api/admin/coupons/{couponId}/issue-result-counts
+// → admin/AdminCouponIssueResultCounts.java (PR #126 + #135)
+
+/**
+ * Redis Lua가 집계한 발급 결과 누적값과, 그것이 DB까지 내려간 진행 상황.
+ *
+ * Redis와 DB를 한 스냅샷으로 읽지 않으므로 호출 시점에 따라 짧은 차이가 생긴다.
+ * 계산값이 음수가 되면 서버가 0으로 보정한다.
+ */
+export interface AdminCouponIssueResultCounts {
+  couponId: number
+  /** reserved + failed */
+  totalRequests: number
+  /** Redis Lua가 예약을 수락한 누적 횟수 */
+  reserved: number
+  /** 아래 6개 거절 사유의 합 */
+  failed: number
+  soldOut: number
+  /** 1인 1매가 막아낸 횟수 */
+  duplicateIssue: number
+  notOpenYet: number
+  issueClosed: number
+  stockNotInitialized: number
+  metadataNotInitialized: number
+  /** DB 적재 재시도 한도를 넘겨 Redis 예약을 실제로 원복한 횟수 */
+  compensated: number
+  /** 해당 쿠폰의 coupon_issue 행 수 */
+  dbPersisted: number
+  /** max(0, reserved - dbPersisted - compensated) */
+  pendingOrRetrying: number
+}
 // ─────────────────────── 부하테스트 리셋 ───────────────────────
 // POST /api/admin/load-test/reset → loadtest/LoadTestResetResult.java
 // 파라미터 없음 — 서버가 "현재 OPEN인 쿠폰"을 스스로 찾는다(1개가 아니면 409).
