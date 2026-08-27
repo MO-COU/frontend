@@ -211,6 +211,7 @@ export interface AdminCouponIssueResultCounts {
   /** max(0, reserved - dbPersisted - compensated) */
   pendingOrRetrying: number
 }
+
 // ─────────────────────── 부하테스트 리셋 ───────────────────────
 // POST /api/admin/load-test/reset → loadtest/LoadTestResetResult.java
 // 파라미터 없음 — 서버가 "현재 OPEN인 쿠폰"을 스스로 찾는다(1개가 아니면 409).
@@ -227,27 +228,40 @@ export interface LoadTestResetResult {
 }
 
 // ─────────────────────── 부하테스트 실행 ───────────────────────
-// ⚠️ 백엔드 미구현. 필드는 V8__coupon_issue_run_scenario_columns.sql 컬럼을 그대로 따랐다.
-// 실제 엔드포인트가 생기면 adminApi.ts의 경로만 맞추면 된다.
+// loadtest/LoadTestExecutionController.java (POST/GET /api/admin/load-tests)
+// 시나리오는 백엔드 enum으로 고정돼 있다. VU·ramp-up은 시나리오에 딸린 값이라 따로 못 보낸다.
 
-export type IssueRunStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED'
+export type LoadTestScenario =
+  | 'V1_RAMP_20000'
+  | 'V2_SPIKE_20000'
+  | 'V3_SPIKE_50000'
+  | 'V4_RAMP_ONCE_20000'
+  | 'V5_RATE_4000_RPS'
+  | 'V6_REPEAT_1_TO_3'
 
-/** 실행 시작 시 채우는 조건 컬럼 (V8) */
-export interface StartLoadTestInput {
-  scenarioVersion: string
-  vus: number
-  rampUpSeconds: number
+/**
+ * RUNNING은 k6 실행 중, SYNCING은 k6는 끝났고 Redis→DB 적재를 기다리는 중이다.
+ * SUCCESS는 DB 적재까지 확인된 상태 — 이때의 수치만 정합성 비교에 쓸 수 있다.
+ */
+export type LoadTestRunStatus = 'PENDING' | 'RUNNING' | 'SYNCING' | 'SUCCESS' | 'FAILED'
+
+export interface LoadTestStartRequest {
+  couponId: number
+  scenario: LoadTestScenario
 }
 
-/** coupon_issue_run 한 행 */
-export interface CouponIssueRun {
+/** coupon_issue_run 한 행 (loadtest/LoadTestRunResponse.java) */
+export interface LoadTestRunResponse {
   runId: number
   couponId: number
-  scenarioVersion: string | null
-  vus: number | null
-  rampUpSeconds: number | null
+  scenario: LoadTestScenario
+  status: LoadTestRunStatus
+  /** 시나리오에 고정된 VU 수. 백엔드 필드명이 vus가 아니라 users다 */
+  users: number
+  rampUpSeconds: number
   requestedCount: number
   issuedCount: number
+  /** soldOut + duplicate + error */
   failedCount: number
   /** 재고 소진으로 거절 */
   soldOutCount: number
@@ -257,7 +271,77 @@ export interface CouponIssueRun {
   errorCount: number
   /** 응답시간 95백분위(ms). 측정 전 null */
   p95Ms: number | null
-  status: IssueRunStatus
   startedAt: string
+  /** k6 종료 시각 */
   finishedAt: string | null
+  /** Redis Stream 이벤트가 DB에 모두 적재된 시각 */
+  dbSyncFinishedAt: string | null
+  message: string | null
 }
+
+/** 화면 표시용 시나리오 설명. load-test/README.md의 시나리오 표를 그대로 옮겼다. */
+export const LOAD_TEST_SCENARIOS: {
+  value: LoadTestScenario
+  label: string
+  users: string
+  rampUp: string
+  requests: string
+  purpose: string
+  /** 팀 합의 시나리오(V1~V3)와 비교용 추가 시나리오(V4~V6) 구분 */
+  required: boolean
+}[] = [
+  {
+    value: 'V1_RAMP_20000',
+    label: 'V1 · 점진 유입 20,000',
+    users: '20,000 VU',
+    rampUp: '60초',
+    requests: '활성 VU가 같은 회원 ID로 반복 요청',
+    purpose: '최대 처리량, 중복·품절 방어',
+    required: true,
+  },
+  {
+    value: 'V2_SPIKE_20000',
+    label: 'V2 · 순간 유입 20,000',
+    users: '20,000 VU',
+    rampUp: '없음',
+    requests: '사용자마다 1회 · 총 20,000건',
+    purpose: '공식 동시 요청 조건',
+    required: true,
+  },
+  {
+    value: 'V3_SPIKE_50000',
+    label: 'V3 · 순간 유입 50,000',
+    users: '50,000 VU',
+    rampUp: '없음',
+    requests: '사용자마다 1회 · 총 50,000건',
+    purpose: '더 큰 순간 부하와 5xx 확인',
+    required: true,
+  },
+  {
+    value: 'V4_RAMP_ONCE_20000',
+    label: 'V4 · 점진 유입 20,000 (1회씩)',
+    users: '20,000 VU',
+    rampUp: '60초',
+    requests: '사용자마다 1회 · 총 20,000건',
+    purpose: '실제 사용자형 점진 유입',
+    required: false,
+  },
+  {
+    value: 'V5_RATE_4000_RPS',
+    label: 'V5 · 요청률 4,000/s',
+    users: '4,000 req/s',
+    rampUp: '없음',
+    requests: '5초 동안 요청률 고정 · 총 20,000건',
+    purpose: '요청률 유지와 dropped iteration 확인',
+    required: false,
+  },
+  {
+    value: 'V6_REPEAT_1_TO_3',
+    label: 'V6 · 사용자별 1~3회 재시도',
+    users: '20,000 VU',
+    rampUp: '없음',
+    requests: '사용자마다 1~3회 · 총 39,999건',
+    purpose: '제한적 재시도와 중복 방어',
+    required: false,
+  },
+]

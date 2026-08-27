@@ -4,11 +4,11 @@ import type {
   AdminCouponIssueResultCounts,
   AdminCouponStock,
   AdminCouponSummary,
-  CouponIssueRun,
   CreateCouponInput,
   CreatedCoupon,
   LoadTestResetResult,
-  StartLoadTestInput,
+  LoadTestRunResponse,
+  LoadTestStartRequest,
   VerificationResult,
   VerificationStartResponse,
 } from '@/types/domain'
@@ -62,13 +62,14 @@ export const adminApi = {
       .post('/admin/load-test/reset', null, { params: { couponId } })
       .then((res) => res.data),
 
-  // ── 부하테스트 실행 (⚠️ 백엔드 미구현) ──────────────────────
-  // 요청 필드는 V8 마이그레이션의 조건 컬럼(scenario_version, vus, ramp_up_seconds)을 따랐다.
-  // 실제 엔드포인트가 확정되면 아래 두 경로만 바꾸면 된다.
-  startLoadTest: (couponId: number, input: StartLoadTestInput): Promise<CouponIssueRun> =>
-    http.post(`/admin/coupons/${couponId}/load-test`, input).then((res) => res.data),
+  // ── loadtest/LoadTestExecutionController ─────────────────
+  /**
+   * k6 실행을 요청하고 runId가 담긴 실행 기록을 받는다(202). 결과는 getLoadTestRun으로 폴링한다.
+   * 실행 중인 테스트가 이미 있거나(409) 대상 회차가 발급 전 초기 상태가 아니면 거부된다.
+   */
+  startLoadTest: (input: LoadTestStartRequest): Promise<LoadTestRunResponse> =>
+    http.post('/admin/load-tests', input).then((res) => res.data),
 
-  /** 이 쿠폰의 가장 최근 실행. 실행 이력이 없으면 null */
-  getLatestLoadTest: (couponId: number): Promise<CouponIssueRun | null> =>
-    http.get(`/admin/coupons/${couponId}/load-test/latest`).then((res) => res.data ?? null),
+  getLoadTestRun: (runId: number): Promise<LoadTestRunResponse> =>
+    http.get(`/admin/load-tests/${runId}`).then((res) => res.data),
 }
