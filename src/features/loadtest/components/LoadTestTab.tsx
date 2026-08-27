@@ -147,10 +147,8 @@ export function LoadTestTab({ couponId }: { couponId: number }) {
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">쿠폰 발급</CardTitle>
-        </CardHeader>
         <CardHeader className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="text-base">쿠폰 발급</CardTitle>
           <div className="flex items-center gap-2">
             <Button
               disabled={running || startLoadTest.isPending}
