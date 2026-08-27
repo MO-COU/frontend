@@ -345,3 +345,16 @@ export const LOAD_TEST_SCENARIOS: {
     required: false,
   },
 ]
+
+// ─────────────────── 고객용 쿠폰 발급 ───────────────────
+// POST /api/coupons/{couponId}/issues → issue/CouponIssueReservationController.java
+// 로그인이 없어 memberId를 클라이언트가 들고 있다가 그대로 보낸다.
+
+export type CouponIssueReservationStatus = 'RESERVED'
+
+export interface CouponIssueReservationResult {
+  eventId: string
+  couponId: number
+  memberId: number
+  status: CouponIssueReservationStatus
+}

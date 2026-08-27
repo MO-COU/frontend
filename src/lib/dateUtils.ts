@@ -32,3 +32,26 @@ export function formatKstDateTime(value: string): string {
     second: '2-digit',
   })
 }
+
+export function formatKstDate(value: string): string {
+  const date = toDate(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  return date.toLocaleDateString('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+}
+
+export function formatKstTime(value: string): string {
+  const date = toDate(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  return date.toLocaleTimeString('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
