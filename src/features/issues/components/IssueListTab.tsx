@@ -24,7 +24,7 @@ export function IssueListTab({ couponId }: { couponId: number }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-base">발급 리스트 (DB 조회)</CardTitle>
+        <CardTitle className="text-base">발급 리스트</CardTitle>
         {data && (
           <span className="text-sm text-muted-foreground">
             총 {data.totalElements.toLocaleString()}건

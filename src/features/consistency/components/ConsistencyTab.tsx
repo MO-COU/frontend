@@ -59,7 +59,7 @@ export function ConsistencyTab({ couponId }: { couponId: number }) {
               onClick={() => start(latestRun?.runId)}
               disabled={running || startVerification.isPending || latestRun == null}
             >
-              최근 부하테스트만 검증
+              해당 회차 검증
             </Button>
           </div>
 

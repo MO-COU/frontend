@@ -148,14 +148,13 @@ export function LoadTestTab({ couponId }: { couponId: number }) {
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader className="flex flex-wrap items-center justify-between gap-2">
-          <CardTitle className="text-base">부하테스트 실행</CardTitle>
           <div className="flex items-center gap-2">
             <Button
               disabled={running || startLoadTest.isPending}
               onClick={() => startLoadTest.mutate(scenario)}
             >
               <PlayIcon />
-              {running ? '실행 중...' : '부하테스트 시작'}
+              {running ? '실행 중...' : '쿠폰 발급 시작'}
             </Button>
             <Dialog open={resetOpen} onOpenChange={setResetOpen}>
               <DialogTrigger asChild>
