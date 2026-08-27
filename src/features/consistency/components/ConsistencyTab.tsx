@@ -15,7 +15,7 @@ import { formatKstDateTime } from '@/lib/dateUtils'
 import { ApiError, toErrorMessage } from '@/lib/http'
 
 export function ConsistencyTab({ couponId }: { couponId: number }) {
-  const { runId, remember, forget } = useLastVerificationRunId()
+  const { runId, remember, forget } = useLastVerificationRunId(couponId)
   const { data: result, isLoading, error } = useVerification(runId)
   const startVerification = useStartVerification()
   const { data: latestRun } = useLatestLoadTest(couponId)
@@ -60,7 +60,6 @@ export function ConsistencyTab({ couponId }: { couponId: number }) {
               disabled={running || startVerification.isPending || latestRun == null}
             >
               최근 부하테스트만 검증
-              {latestRun && ` (run #${latestRun.runId})`}
             </Button>
           </div>
 
