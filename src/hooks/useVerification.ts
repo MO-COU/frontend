@@ -1,14 +1,14 @@
-import { useState } from 'react'
+import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { adminApi } from '@/api/adminApi'
 import { toErrorMessage } from '@/lib/http'
 
-const STORAGE_KEY = 'mocou.lastVerificationRunId'
+const storageKey = (couponId: number) => `mocou.lastVerificationRunId.${couponId}`
 
-function readStoredRunId(): number | null {
-  const raw = localStorage.getItem(STORAGE_KEY)
+function readStoredRunId(couponId: number): number | null {
+  const raw = localStorage.getItem(storageKey(couponId))
   if (!raw) return null
   const parsed = Number(raw)
   return Number.isFinite(parsed) ? parsed : null
@@ -16,21 +16,32 @@ function readStoredRunId(): number | null {
 
 /**
  * 검증에는 목록 API가 없어서, 우리가 시작시킨 runId를 직접 들고 있어야 한다.
- * 새로고침해도 이어서 볼 수 있게 localStorage에 남긴다.
+ * 예전엔 이 키가 쿠폰 구분 없이 하나였다 — 그래서 쿠폰 A에서 검증을 돌린 뒤 쿠폰 B 페이지로
+ * 가면 A의 결과가 B의 정합성 탭에 그대로 보였다. couponId별로 나눠 저장해서 고친다.
  */
-export function useLastVerificationRunId() {
-  const [runId, setRunId] = useState<number | null>(() => readStoredRunId())
+export function useLastVerificationRunId(couponId: number) {
+  const queryClient = useQueryClient()
+  const queryKey = ['verificationRunId', couponId]
 
-  const remember = (id: number) => {
-    localStorage.setItem(STORAGE_KEY, String(id))
-    setRunId(id)
-  }
+  const { data: runId = null } = useQuery({
+    queryKey,
+    queryFn: () => readStoredRunId(couponId),
+    staleTime: Infinity,
+  })
+
+  const remember = useCallback(
+    (id: number) => {
+      localStorage.setItem(storageKey(couponId), String(id))
+      queryClient.setQueryData(['verificationRunId', couponId], id)
+    },
+    [couponId, queryClient],
+  )
 
   /** 초기화(load-test/reset)가 검증 이력까지 지우므로, 죽은 참조를 버릴 수단이 필요하다 */
-  const forget = () => {
-    localStorage.removeItem(STORAGE_KEY)
-    setRunId(null)
-  }
+  const forget = useCallback(() => {
+    localStorage.removeItem(storageKey(couponId))
+    queryClient.setQueryData(['verificationRunId', couponId], null)
+  }, [couponId, queryClient])
 
   return { runId, remember, forget }
 }
