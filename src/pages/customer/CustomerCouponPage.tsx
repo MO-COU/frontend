@@ -35,7 +35,7 @@ export function CustomerCouponPage() {
     <div className="mx-auto flex max-w-md flex-col gap-6">
       <Button asChild variant="ghost" size="sm" className="w-fit -ml-2">
         <Link to="/shop">
-          <ArrowLeftIcon /> 목록으로
+          <ArrowLeftIcon /> 목록으로량
         </Link>
       </Button>
 
@@ -62,12 +62,6 @@ export function CustomerCouponPage() {
               <div className="flex items-center justify-between">
                 <dt className="text-muted-foreground">오픈 시각</dt>
                 <dd>{formatKstTime(stock.openAt)}</dd>
-              </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-muted-foreground">남은 수량</dt>
-                <dd className="font-medium">
-                  {stock.remainingQuantity.toLocaleString()} / {stock.totalQuantity.toLocaleString()}
-                </dd>
               </div>
             </dl>
 
