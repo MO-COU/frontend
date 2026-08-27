@@ -35,7 +35,7 @@ export function CustomerCouponPage() {
     <div className="mx-auto flex max-w-md flex-col gap-6">
       <Button asChild variant="ghost" size="sm" className="w-fit -ml-2">
         <Link to="/shop">
-          <ArrowLeftIcon /> 목록으로량
+          <ArrowLeftIcon /> 목록으로
         </Link>
       </Button>
 
