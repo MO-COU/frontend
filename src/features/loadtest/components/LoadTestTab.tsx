@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PlayIcon, RotateCcwIcon } from 'lucide-react'
+import { ChevronDownIcon, PlayIcon, RotateCcwIcon } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -129,6 +129,9 @@ function ScenarioPicker({
 export function LoadTestTab({ couponId }: { couponId: number }) {
   const [scenario, setScenario] = useState<LoadTestScenario>('V1_RAMP_20000')
   const [resetOpen, setResetOpen] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+
+  const selectedScenario = LOAD_TEST_SCENARIOS.find((s) => s.value === scenario)
 
   const { runId, remember, forget } = useLastLoadTestRunId(couponId)
   const { data: run, isLoading, isError } = useLoadTestRun(runId)
@@ -144,49 +147,9 @@ export function LoadTestTab({ couponId }: { couponId: number }) {
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-base">부하테스트 실행</CardTitle>
-          <Dialog open={resetOpen} onOpenChange={setResetOpen}>
-            <DialogTrigger asChild>
-              <Button variant="destructive" size="sm" disabled={running || resetLoadTest.isPending}>
-                <RotateCcwIcon /> 초기화
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>초기화 확인</DialogTitle>
-                <DialogDescription>
-                  이 회차의 발급 건·상태 이력·실패 로그·알림·정합성 검증 기록을 모두 삭제하고 재고를
-                  되돌립니다. 이전 실행 결과도 함께 사라지므로, 결과를 남겨야 한다면 새 회차를
-                  만드는 편이 낫습니다. 계속하시겠습니까?
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setResetOpen(false)}>
-                  취소
-                </Button>
-                <Button
-                  variant="destructive"
-                  disabled={resetLoadTest.isPending}
-                  onClick={() =>
-                    resetLoadTest.mutate(undefined, { onSuccess: () => setResetOpen(false) })
-                  }
-                >
-                  {resetLoadTest.isPending ? '초기화 중...' : '초기화'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <p className="text-sm text-muted-foreground">
-            시나리오를 하나 고르면 k6 서버에서 그대로 실행됩니다. VU·ramp-up은 시나리오에 고정된
-            값이라 따로 바꿀 수 없습니다. 대상 회차는 OPEN이면서 발급 이력이 없어야 합니다.
-          </p>
-
-          <ScenarioPicker selected={scenario} onSelect={setScenario} disabled={running} />
-
-          <div>
+          <div className="flex items-center gap-2">
             <Button
               disabled={running || startLoadTest.isPending}
               onClick={() => startLoadTest.mutate(scenario)}
@@ -194,7 +157,66 @@ export function LoadTestTab({ couponId }: { couponId: number }) {
               <PlayIcon />
               {running ? '실행 중...' : '부하테스트 시작'}
             </Button>
+            <Dialog open={resetOpen} onOpenChange={setResetOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={running || resetLoadTest.isPending}
+                >
+                  <RotateCcwIcon /> 초기화
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>초기화 확인</DialogTitle>
+                  <DialogDescription>
+                    이 회차의 발급 건·상태 이력·실패 로그·알림·정합성 검증 기록을 모두 삭제하고 재고를
+                    되돌립니다. 이전 실행 결과도 함께 사라지므로, 결과를 남겨야 한다면 새 회차를
+                    만드는 편이 낫습니다. 계속하시겠습니까?
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setResetOpen(false)}>
+                    취소
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    disabled={resetLoadTest.isPending}
+                    onClick={() =>
+                      resetLoadTest.mutate(undefined, { onSuccess: () => setResetOpen(false) })
+                    }
+                  >
+                    {resetLoadTest.isPending ? '초기화 중...' : '초기화'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <button
+            type="button"
+            onClick={() => setPickerOpen((open) => !open)}
+            aria-expanded={pickerOpen}
+            className="flex items-center gap-1.5 text-sm font-medium text-foreground"
+          >
+            <ChevronDownIcon
+              className={cn('size-4 transition-transform', pickerOpen && 'rotate-180')}
+            />
+            시나리오: {selectedScenario?.label ?? scenario}
+            <span className="text-muted-foreground">{pickerOpen ? '접기' : '변경'}</span>
+          </button>
+
+          {pickerOpen && (
+            <div className="flex flex-col gap-4">
+              <p className="text-sm text-muted-foreground">
+                시나리오를 하나 고르면 k6 서버에서 그대로 실행됩니다. VU·ramp-up은 시나리오에 고정된
+                값이라 따로 바꿀 수 없습니다. 대상 회차는 OPEN이면서 발급 이력이 없어야 합니다.
+              </p>
+              <ScenarioPicker selected={scenario} onSelect={setScenario} disabled={running} />
+            </div>
+          )}
 
           {running && (
             <p className="text-sm text-muted-foreground">
