@@ -358,3 +358,21 @@ export interface CouponIssueReservationResult {
   memberId: number
   status: CouponIssueReservationStatus
 }
+
+// ─────────────────── 만료 스케줄러 제어 ───────────────────
+// GET/PUT /api/internal/lifecycle/expiration-scheduler → lifecycle/ExpirationSchedulerControlController.java
+
+export interface ExpirationSchedulerState {
+  enabled: boolean
+}
+
+// ─────────────────── 알림 처리 현황 ───────────────────
+// GET /api/admin/coupons/{couponId}/notification-counts → admin/AdminCouponNotificationCounts.java
+
+export interface AdminCouponNotificationCounts {
+  couponId: number
+  totalCount: number
+  sentCount: number
+  pendingCount: number
+  failedCount: number
+}

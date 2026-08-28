@@ -2,10 +2,12 @@ import { http } from '@/lib/http'
 import type {
   AdminCouponIssuePage,
   AdminCouponIssueResultCounts,
+  AdminCouponNotificationCounts,
   AdminCouponStock,
   AdminCouponSummary,
   CreateCouponInput,
   CreatedCoupon,
+  ExpirationSchedulerState,
   LoadTestResetResult,
   LoadTestRunResponse,
   LoadTestStartRequest,
@@ -34,6 +36,10 @@ export const adminApi = {
   /** Redis 발급 결과 누적값 + DB 적재 진행 (PR #126, #135) */
   getIssueResultCounts: (couponId: number): Promise<AdminCouponIssueResultCounts> =>
     http.get(`/admin/coupons/${couponId}/issue-result-counts`).then((res) => res.data),
+
+  /** 회차별 발급 성공 알림의 전체·완료·대기·실패 건수 */
+  getNotificationCounts: (couponId: number): Promise<AdminCouponNotificationCounts> =>
+    http.get(`/admin/coupons/${couponId}/notification-counts`).then((res) => res.data),
 
   getIssues: (couponId: number, page: number, size: number): Promise<AdminCouponIssuePage> =>
     http
@@ -72,4 +78,13 @@ export const adminApi = {
 
   getLoadTestRun: (runId: number): Promise<LoadTestRunResponse> =>
     http.get(`/admin/load-tests/${runId}`).then((res) => res.data),
+
+  // ── lifecycle/ExpirationSchedulerControlController ────────
+  getExpirationSchedulerState: (): Promise<ExpirationSchedulerState> =>
+    http.get('/internal/lifecycle/expiration-scheduler').then((res) => res.data),
+
+  setExpirationSchedulerState: (enabled: boolean): Promise<ExpirationSchedulerState> =>
+    http
+      .put('/internal/lifecycle/expiration-scheduler', { enabled })
+      .then((res) => res.data),
 }
