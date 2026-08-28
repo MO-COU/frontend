@@ -1,29 +1,14 @@
 import { useState } from 'react'
-import { ChevronDownIcon, PlayIcon, RotateCcwIcon } from 'lucide-react'
+import { ChevronDownIcon, PlayIcon } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
 import { IssueResultPanel } from '@/features/loadtest/components/IssueResultPanel'
 import { NotificationCountsPanel } from '@/features/loadtest/components/NotificationCountsPanel'
 import { RunStatusBadge } from '@/features/loadtest/components/RunStatusBadge'
 import { useIssueResultCounts } from '@/hooks/useIssueResultCounts'
-import {
-  isRunning,
-  useLastLoadTestRunId,
-  useLoadTestRun,
-  useResetLoadTest,
-  useStartLoadTest,
-} from '@/hooks/useLoadTest'
+import { isRunning, useLastLoadTestRunId, useLoadTestRun, useStartLoadTest } from '@/hooks/useLoadTest'
 import { useNotificationCounts } from '@/hooks/useNotificationCounts'
 import { formatKstDateTime } from '@/lib/dateUtils'
 import { cn } from '@/lib/utils'
@@ -137,16 +122,13 @@ function ScenarioPicker({
 
 export function LoadTestTab({ couponId }: { couponId: number }) {
   const [scenario, setScenario] = useState<LoadTestScenario>('V1_RAMP_20000')
-  const [resetOpen, setResetOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
 
   const selectedScenario = LOAD_TEST_SCENARIOS.find((s) => s.value === scenario)
 
-  const { runId, remember, forget } = useLastLoadTestRunId(couponId)
+  const { runId, remember } = useLastLoadTestRunId(couponId)
   const { data: run, isLoading, isError } = useLoadTestRun(runId)
   const startLoadTest = useStartLoadTest(couponId, remember)
-  // 초기화는 실행 기록까지 지우므로, 들고 있던 runId도 같이 버려야 404를 안 본다.
-  const resetLoadTest = useResetLoadTest(couponId, forget)
 
   const running = isRunning(run)
 
@@ -158,52 +140,15 @@ export function LoadTestTab({ couponId }: { couponId: number }) {
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader className="flex flex-wrap items-center justify-between gap-2">
+        <CardHeader className="flex flex-col items-start gap-2">
           <CardTitle className="text-base">쿠폰 발급</CardTitle>
-          <div className="flex items-center gap-2">
-            <Button
-              disabled={running || startLoadTest.isPending}
-              onClick={() => startLoadTest.mutate(scenario)}
-            >
-              <PlayIcon />
-              {running ? '실행 중...' : '쿠폰 발급 시작'}
-            </Button>
-            <Dialog open={resetOpen} onOpenChange={setResetOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={running || resetLoadTest.isPending}
-                >
-                  <RotateCcwIcon /> 초기화
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>초기화 확인</DialogTitle>
-                  <DialogDescription>
-                    이 회차의 발급 건·상태 이력·실패 로그·알림·정합성 검증 기록을 모두 삭제하고 재고를
-                    되돌립니다. 이전 실행 결과도 함께 사라지므로, 결과를 남겨야 한다면 새 회차를
-                    만드는 편이 낫습니다. 계속하시겠습니까?
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setResetOpen(false)}>
-                    취소
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    disabled={resetLoadTest.isPending}
-                    onClick={() =>
-                      resetLoadTest.mutate(undefined, { onSuccess: () => setResetOpen(false) })
-                    }
-                  >
-                    {resetLoadTest.isPending ? '초기화 중...' : '초기화'}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
+          <Button
+            disabled={running || startLoadTest.isPending}
+            onClick={() => startLoadTest.mutate(scenario)}
+          >
+            <PlayIcon />
+            {running ? '실행 중...' : '쿠폰 발급 시작'}
+          </Button>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <button
