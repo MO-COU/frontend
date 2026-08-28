@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { CouponGalleryView } from '@/features/coupon/components/CouponGalleryView'
 import { CouponListView } from '@/features/coupon/components/CouponListView'
 import { CreateCouponDialog } from '@/features/coupon/components/CreateCouponDialog'
+import { ExpirationSchedulerToggle } from '@/features/coupon/components/ExpirationSchedulerToggle'
 import { useCouponList } from '@/hooks/useCoupons'
 import { toErrorMessage } from '@/lib/http'
 import { readLastCouponId } from '@/lib/lastCoupon'
@@ -90,7 +91,10 @@ export function DashboardPage() {
             쿠폰별 재고 현황 · 부하테스트 실행 · 발급 리스트 · 정합성 검증을 확인합니다.
           </p>
         </div>
-        <CreateCouponDialog />
+        <div className="flex items-center gap-2">
+          <ExpirationSchedulerToggle />
+          <CreateCouponDialog />
+        </div>
       </div>
 
       {coupons && coupons.length > 0 && (

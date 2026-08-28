@@ -14,6 +14,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { IssueResultPanel } from '@/features/loadtest/components/IssueResultPanel'
+import { NotificationCountsPanel } from '@/features/loadtest/components/NotificationCountsPanel'
 import { RunStatusBadge } from '@/features/loadtest/components/RunStatusBadge'
 import { useIssueResultCounts } from '@/hooks/useIssueResultCounts'
 import {
@@ -23,6 +24,7 @@ import {
   useResetLoadTest,
   useStartLoadTest,
 } from '@/hooks/useLoadTest'
+import { useNotificationCounts } from '@/hooks/useNotificationCounts'
 import { formatKstDateTime } from '@/lib/dateUtils'
 import { cn } from '@/lib/utils'
 import {
@@ -41,10 +43,17 @@ function ResultTile({ label, value }: { label: string; value: string }) {
 }
 
 function RunResult({ run }: { run: LoadTestRunResponse }) {
+  // coupon_issue_run.scenario_version 값 그대로다. 사람이 읽기 좋은 라벨이 있으면 그걸 쓴다.
+  const scenarioLabel =
+    LOAD_TEST_SCENARIOS.find((s) => s.value === run.scenario)?.label ?? run.scenario
+
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-base">실행 결과</CardTitle>
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-base">실행 결과</CardTitle>
+          <Badge variant="outline">{scenarioLabel}</Badge>
+        </div>
         <RunStatusBadge status={run.status} />
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -143,6 +152,8 @@ export function LoadTestTab({ couponId }: { couponId: number }) {
 
   // 부하가 걸리는 중에는 더 자주 본다. 실행 API를 안 거치고 k6가 밖에서 때려도 값이 움직인다.
   const { data: counts, isFetching: isFetchingCounts } = useIssueResultCounts(couponId, running)
+  const { data: notificationCounts, isFetching: isFetchingNotificationCounts } =
+    useNotificationCounts(couponId, running)
 
   return (
     <div className="flex flex-col gap-6">
@@ -232,6 +243,13 @@ export function LoadTestTab({ couponId }: { couponId: number }) {
       </Card>
 
       {counts && <IssueResultPanel counts={counts} isFetching={isFetchingCounts} />}
+
+      {notificationCounts && (
+        <NotificationCountsPanel
+          counts={notificationCounts}
+          isFetching={isFetchingNotificationCounts}
+        />
+      )}
 
       {isLoading && <p className="text-sm text-muted-foreground">불러오는 중...</p>}
       {!isLoading && !run && !isError && (
