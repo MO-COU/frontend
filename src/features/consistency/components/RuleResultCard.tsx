@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { VerificationRuleName, VerificationRuleResult } from '@/types/domain'
 
-/** consistency/VerificationRule.java 8종 */
+/** consistency/VerificationRule.java 9종 */
 const RULE_LABEL: Record<VerificationRuleName, string> = {
   DUPLICATE_ISSUE: '1인 1매 (중복 발급)',
   OVER_ISSUE: '초과 발급',
@@ -21,6 +21,7 @@ const RULE_LABEL: Record<VerificationRuleName, string> = {
   HISTORY_MISMATCH: '이력 체인 정합',
   TOOL_RELIABILITY: '검증 도구 신뢰성',
   REDIS_DB_MISMATCH: 'Redis ↔ DB 일치',
+  ISSUE_SEQUENCE_MISMATCH: '예약 순번 정합',
 }
 
 const RULE_DESCRIPTION: Record<VerificationRuleName, string> = {
@@ -32,6 +33,7 @@ const RULE_DESCRIPTION: Record<VerificationRuleName, string> = {
   HISTORY_MISMATCH: '이력 체인이 현재 상태와 어긋나거나 끊겼는가',
   TOOL_RELIABILITY: '위반을 주입했을 때 실제로 검출되는가',
   REDIS_DB_MISMATCH: 'Redis 발급 집합·재고가 DB와 어긋나는가',
+  ISSUE_SEQUENCE_MISMATCH: 'Redis가 확정한 예약 순번·잔여재고가 DB까지 온전히 왔는가',
 }
 
 export function RuleResultCard({ result }: { result: VerificationRuleResult }) {

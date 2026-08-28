@@ -121,6 +121,7 @@ export type VerificationRuleName =
   | 'HISTORY_MISMATCH'
   | 'TOOL_RELIABILITY'
   | 'REDIS_DB_MISMATCH'
+  | 'ISSUE_SEQUENCE_MISMATCH'
 
 /** 규칙이 끝까지 실행됐는지. FAILED면 위반 0건이어도 "정상"이 아니다 */
 export type RuleStatus = 'CHECKED' | 'FAILED'

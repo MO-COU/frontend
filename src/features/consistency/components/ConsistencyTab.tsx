@@ -87,7 +87,7 @@ export function ConsistencyTab({ couponId }: { couponId: number }) {
               {running ? (
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
                   <LoaderIcon className="size-4 animate-spin" />
-                  검증이 진행 중입니다. 2초마다 자동으로 갱신됩니다. (시작{' '}
+                  검증이 진행 중입니다. (시작{' '}
                   {formatKstDateTime(result.startedAt)})
                 </p>
               ) : (
