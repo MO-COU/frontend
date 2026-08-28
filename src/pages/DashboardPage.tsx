@@ -1,15 +1,15 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRightIcon, LayoutGridIcon, ListIcon } from 'lucide-react'
+import { ArrowRightIcon, LayoutGridIcon, ListIcon, SettingsIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { AdminFeaturesPanel } from '@/features/coupon/components/AdminFeaturesPanel'
 import { CouponGalleryView } from '@/features/coupon/components/CouponGalleryView'
 import { CouponListView } from '@/features/coupon/components/CouponListView'
 import { CreateCouponDialog } from '@/features/coupon/components/CreateCouponDialog'
-import { ExpirationSchedulerToggle } from '@/features/coupon/components/ExpirationSchedulerToggle'
 import { useCouponList } from '@/hooks/useCoupons'
 import { toErrorMessage } from '@/lib/http'
 import { readLastCouponId } from '@/lib/lastCoupon'
@@ -75,6 +75,7 @@ function OpenByIdFallback() {
 export function DashboardPage() {
   const [view, setView] = useState<ViewMode>('gallery')
   const [range, setRange] = useState<RangeFilter>('all')
+  const [adminOpen, setAdminOpen] = useState(false)
   const { data: coupons, isLoading, error } = useCouponList()
 
   const filtered = useMemo(
@@ -92,10 +93,18 @@ export function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <ExpirationSchedulerToggle />
+          <Button
+            variant={adminOpen ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setAdminOpen((v) => !v)}
+          >
+            <SettingsIcon /> 관리자 기능
+          </Button>
           <CreateCouponDialog />
         </div>
       </div>
+
+      {adminOpen && <AdminFeaturesPanel />}
 
       {coupons && coupons.length > 0 && (
         <div className="flex items-center justify-between gap-4">

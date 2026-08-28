@@ -1,22 +1,34 @@
-import { useEffect } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { ArrowLeftIcon } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeftIcon, Trash2Icon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ConsistencyTab } from '@/features/consistency/components/ConsistencyTab'
 import { StockPanel } from '@/features/coupon/components/StockPanel'
 import { IssueListTab } from '@/features/issues/components/IssueListTab'
 import { LoadTestTab } from '@/features/loadtest/components/LoadTestTab'
+import { useDeleteCoupon } from '@/hooks/useCoupons'
 import { isRunning, useLatestLoadTest } from '@/hooks/useLoadTest'
 import { useStock } from '@/hooks/useStock'
 import { rememberCouponId } from '@/lib/lastCoupon'
 import { toErrorMessage } from '@/lib/http'
 
 export function CouponDetailPage() {
+  const navigate = useNavigate()
   const { couponId: raw } = useParams<{ couponId: string }>()
   const couponId = Number(raw)
   const valid = Number.isFinite(couponId) && couponId > 0
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   useEffect(() => {
     if (valid) rememberCouponId(couponId)
@@ -26,6 +38,7 @@ export function CouponDetailPage() {
   const { data: latestRun } = useLatestLoadTest(valid ? couponId : null)
   const live = isRunning(latestRun)
   const { data: stock, isFetching, isLoading, error } = useStock(valid ? couponId : null, live)
+  const deleteCoupon = useDeleteCoupon(() => navigate('/'))
 
   if (!valid) {
     return (
@@ -35,11 +48,45 @@ export function CouponDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Button asChild variant="ghost" size="sm" className="w-fit -ml-2">
-        <Link to="/">
-          <ArrowLeftIcon /> 쿠폰 목록
-        </Link>
-      </Button>
+      <div className="flex items-center justify-between">
+        <Button asChild variant="ghost" size="sm" className="-ml-2 w-fit">
+          <Link to="/">
+            <ArrowLeftIcon /> 쿠폰 목록
+          </Link>
+        </Button>
+
+        <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+          <DialogTrigger asChild>
+            <Button variant="destructive" size="sm" disabled={deleteCoupon.isPending}>
+              <Trash2Icon /> 회차 삭제
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>회차 삭제 확인</DialogTitle>
+              <DialogDescription>
+                이 회차와 발급·이력·알림·실패 로그·정합성 검증 기록을 모두 지웁니다. 되돌릴 수
+                없습니다. 종료된 회차이거나 부하 테스트가 진행 중이면 삭제가 거부됩니다.
+                계속하시겠습니까?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+                취소
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={deleteCoupon.isPending}
+                onClick={() =>
+                  deleteCoupon.mutate(couponId, { onSuccess: () => setDeleteOpen(false) })
+                }
+              >
+                {deleteCoupon.isPending ? '삭제 중...' : '삭제'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       {isLoading && <p className="text-sm text-muted-foreground">재고를 불러오는 중...</p>}
       {error && (

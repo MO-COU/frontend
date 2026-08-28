@@ -1,10 +1,13 @@
 import { http } from '@/lib/http'
 import type {
+  AdminCouponDlqFailure,
+  AdminCouponDlqRetryResult,
   AdminCouponIssuePage,
   AdminCouponIssueResultCounts,
   AdminCouponNotificationCounts,
   AdminCouponStock,
   AdminCouponSummary,
+  CouponRoundDeleteResult,
   CreateCouponInput,
   CreatedCoupon,
   ExpirationSchedulerState,
@@ -29,6 +32,13 @@ export const adminApi = {
   createCoupon: (input: CreateCouponInput): Promise<CreatedCoupon> =>
     http.post('/admin/coupons', input).then((res) => res.data),
 
+  /**
+   * 회차와 딸린 기록을 통째로 지운다. 되돌릴 수 없다.
+   * 종료된 회차·진행 중인 부하 테스트·미반영 발급이 있으면 COUPON_ROUND_NOT_DELETABLE(409)로 거부된다.
+   */
+  deleteCoupon: (couponId: number): Promise<CouponRoundDeleteResult> =>
+    http.delete(`/admin/coupons/${couponId}`).then((res) => res.data),
+
   // ── admin/AdminCouponController ──────────────────────────
   getStock: (couponId: number): Promise<AdminCouponStock> =>
     http.get(`/admin/coupons/${couponId}/stock`).then((res) => res.data),
@@ -44,6 +54,16 @@ export const adminApi = {
   getIssues: (couponId: number, page: number, size: number): Promise<AdminCouponIssuePage> =>
     http
       .get(`/admin/coupons/${couponId}/issues`, { params: { page, size } })
+      .then((res) => res.data),
+
+  /** DLQ 복구 재시도까지 소진해 최종 실패로 확정된 항목 목록 (issue-dlq-failed Stream 기준) */
+  getDlqFailures: (couponId: number): Promise<AdminCouponDlqFailure[]> =>
+    http.get(`/admin/coupons/${couponId}/issue-dlq/failed`).then((res) => res.data ?? []),
+
+  /** DLQ 실패 항목 하나를 다시 저장 시도한다. saved=false는 이미 다른 경로로 처리됐다는 뜻. */
+  retryDlqFailure: (couponId: number, recordId: string): Promise<AdminCouponDlqRetryResult> =>
+    http
+      .post(`/admin/coupons/${couponId}/issue-dlq/failed/${encodeURIComponent(recordId)}/retry`)
       .then((res) => res.data),
 
   // ── consistency/VerificationController ───────────────────

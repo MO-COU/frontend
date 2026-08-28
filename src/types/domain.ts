@@ -58,6 +58,17 @@ export interface CreatedCoupon {
   totalQuantity: number
 }
 
+/** 회차 삭제 응답 (coupon/CouponRoundDeleteResult.java). 되돌릴 수 없는 삭제라 지운 건수만 남는다. */
+export interface CouponRoundDeleteResult {
+  couponId: number
+  deletedIssues: number
+  deletedHistories: number
+  deletedFailureLogs: number
+  deletedNotifications: number
+  deletedVerificationRuns: number
+  deletedIssueRuns: number
+}
+
 // ───────────────────────── 재고 ─────────────────────────
 // GET /api/admin/coupons/{couponId}/stock → admin/AdminCouponStock.java
 
@@ -380,4 +391,27 @@ export interface AdminCouponNotificationCounts {
   sentCount: number
   pendingCount: number
   failedCount: number
+}
+
+// ─────────────────── DLQ 최종 실패 관리 ───────────────────
+// GET /api/admin/coupons/{couponId}/issue-dlq/failed → admin/AdminCouponDlqFailure.java
+
+export interface AdminCouponDlqFailure {
+  recordId: string
+  couponId: number
+  memberId: number
+  eventId: string
+  issueSequence: number
+  remainingAtIssue: number
+  issuedAt: string
+  failureReason: string | null
+  occurredAt: string | null
+}
+
+// POST /api/admin/coupons/{couponId}/issue-dlq/failed/{recordId}/retry → admin/AdminCouponDlqRetryResult.java
+
+export interface AdminCouponDlqRetryResult {
+  couponId: number
+  memberId: number
+  saved: boolean
 }

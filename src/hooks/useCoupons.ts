@@ -27,3 +27,22 @@ export function useCreateCoupon() {
     },
   })
 }
+
+export function useDeleteCoupon(onDeleted: () => void) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (couponId: number) => adminApi.deleteCoupon(couponId),
+    onSuccess: (result) => {
+      toast.success(
+        `회차 #${result.couponId}를 삭제했습니다 — 발급 ${result.deletedIssues.toLocaleString()}건, ` +
+          `이력 ${result.deletedHistories.toLocaleString()}건 삭제`,
+      )
+      queryClient.invalidateQueries({ queryKey: ['coupons'] })
+      onDeleted()
+    },
+    onError: (error) => {
+      toast.error(toErrorMessage(error, '회차 삭제에 실패했습니다.'))
+    },
+  })
+}
