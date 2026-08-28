@@ -96,6 +96,10 @@ export interface AdminCouponIssue {
   issuedAt: string
   usedAt: string | null
   expiresAt: string
+  /** Redis Lua가 예약 성공 순간 INCR로 확정한 쿠폰별 순번. 더미데이터(300만 건)는 Redis를 안 거쳐 null (PR #181, V11) */
+  issueSequence: number | null
+  /** 그 예약이 성공한 순간 Redis DECR이 반환한 잔여 재고. 더미데이터는 null */
+  remainingAtIssue: number | null
 }
 
 export interface AdminCouponIssuePage {
