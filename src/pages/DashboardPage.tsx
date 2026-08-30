@@ -89,7 +89,7 @@ export function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold">쿠폰 대시보드</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            쿠폰별 재고 현황 · 부하테스트 실행 · 발급 리스트 · 정합성 검증을 확인합니다.
+            LG U+ 멤버십 회원에게 제공되는 쿠폰 테스트 화면입니다.
           </p>
         </div>
         <div className="flex items-center gap-2">

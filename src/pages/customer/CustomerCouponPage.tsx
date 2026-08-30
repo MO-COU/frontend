@@ -32,7 +32,7 @@ export function CustomerCouponPage() {
   const canIssue = stock?.status === 'OPEN' && stock.remainingQuantity > 0
 
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-6">
+    <div className="mx-auto flex max-w-md flex-col gap-6 pt-6 sm:pt-16">
       <Button asChild variant="ghost" size="sm" className="w-fit -ml-2">
         <Link to="/shop">
           <ArrowLeftIcon /> 목록으로
