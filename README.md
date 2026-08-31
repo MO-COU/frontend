@@ -175,21 +175,6 @@ cd ../backend && ./gradlew bootRun   # MySQL/Redis는 docker compose로 먼저 �
 
 app-ec2는 키 페어 없이 떠 있다 — 22번 포트를 열고 `.pem`으로 붙는 대신 **SSM 세션을 SSH 터널로 쓴다.**
 
-
-
-
-## 알아둘 것 — 공통
-
-- **모든 응답은 `ApiResponse` 봉투**(`{success, data, error, traceId, timestamp}`)로 온다.
-  `lib/http.ts` 인터셉터가 한 번만 벗겨내므로, API 함수와 화면은 알맹이만 다룬다.
-  에러는 백엔드 `ErrorCode`를 담은 `ApiError`로 바뀌어 던져진다.
-- **"이 쿠폰의 최근 실행"을 알려주는 목록 API가 없다.** 부하테스트(`useLoadTest`)와 정합성 검증
-  (`useVerification`) 둘 다, 시작시킨 `runId`를 **쿠폰별로 나눠** localStorage에 기억해뒀다가
-  그 ID로 상태를 폴링한다. 여러 컴포넌트가 같은 값을 봐야 해서 `useState` 대신 TanStack Query
-  캐시에 얹었다.
-- **로고·커피 이미지는 실제 파일이 없다.** `components/brand/`에 대체 표현(텍스트 워드마크 +
-  SVG 일러스트)으로 만들어뒀다. 실제 브랜드 자산이 생기면 이 두 컴포넌트만 갈아끼우면 된다.
-
 ### 최초 1회 설정 (SSM 설정)
 ```bash
 # 1. 배포 전용 키 생성
