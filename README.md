@@ -25,14 +25,14 @@
 브라우저
   │  (포트 80, HTTP만 — HTTPS/도메인 없음)
   ▼
-┌─────────────────────── EC2 (app-ec2) ───────────────────────┐
-│  NGINX :80                                                   │
-│   ├─ location /      → 정적 파일 직접 서빙 (/var/www/mocou/dist) │
-│   └─ location /api/  → instance-ip:8080 으로 리버스 프록시         │
-│                              │                                │
-│                              ▼                                │
-│          Docker Compose ── Spring Boot :8080                 │
-│                         ── MySQL, Redis                      │
+┌─────────────────────── EC2 (app-ec2) ──────────────────────┐
+│  NGINX :80                                                 │
+│   ├─ location /      → 정적 파일 직접 서빙 (/var/www/mocou/dist)│
+│   └─ location /api/  → instance-ip:8080 으로 리버스 프록시      │
+│                              │                             │
+│                              ▼                             │
+│          Docker Compose ── Spring Boot :8080               │
+│                         ── MySQL, Redis                    │
 └────────────────────────────────────────────────────────────┘
 ```
 
