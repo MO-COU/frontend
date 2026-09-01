@@ -1,11 +1,10 @@
 # MOCOU - Frontend
 
 대규모 트래픽 환경에서 초과 발급 0건 · 1인 1매 · 정합성을 보장하는 선착순 쿠폰 발급 시스템의
-프론트엔드. **화면이 둘이다** — 로그인 없이 쿠폰을 받는 **고객용**(`/shop`)과, 쿠폰
-생성·부하테스트·발급 리스트·정합성 검증을 다루는 **관리자용**(`/`). 상단 헤더 오른쪽 버튼으로
-서로 오갈 수 있다.
+프론트엔드.
 
-## 기술 스택
+<details>
+<summary>기술 스택</summary>
 
 | 구분 | 선택 |
 |---|---|
@@ -16,39 +15,72 @@
 | 스타일 | Tailwind CSS v4 + shadcn 스타일 UI 프리미티브(직접 구현) |
 | HTTP | Axios |
 | 토스트 | sonner |
+</details>
+<details>
+<summary>배포 서버 구성</summary>
 
-## 폴더 구조
+프론트와 백엔드는 **같은 EC2 한 대**(app-ec2)에 같이 올라가고, 그 안에서도 역할이 나뉜다.
+
+```
+브라우저
+  │  (포트 80, HTTP만 — HTTPS/도메인 없음)
+  ▼
+┌─────────────────────── EC2 (app-ec2) ──────────────────────┐
+│  NGINX :80                                                 │
+│   ├─ location /      → 정적 파일 직접 서빙 (/var/www/mocou/dist)│
+│   └─ location /api/  → instance-ip:8080 으로 리버스 프록시      │
+│                              │                             │
+│                              ▼                             │
+│          Docker Compose ── Spring Boot :8080               │
+│                         ── MySQL, Redis                    │
+└────────────────────────────────────────────────────────────┘
+```
+
+- **프론트는 빌드된 정적 파일**(`dist/`)로 nginx가 디스크에서 직접 읽어 서빙한다. Node 서버가 따로 떠 있는 게 아니다.
+- **`/api/`로 시작하는 요청만** nginx가 같은 서버 안의 Spring Boot 컨테이너(8080)로 넘긴다. 나머지는 SPA 라우팅을 위해 전부 `index.html`로 폴백한다(`try_files $uri $uri/ /index.html`).
+- 프론트와 백엔드가 **같은 오리진**(같은 IP, 같은 80번 포트)으로 나가기 때문에 **CORS 설정이 필요 없다.**
+- **인증이 없다.** 로그인도, 토큰 검사도 없다. 관리자 화면과 고객 화면은 그냥 헤더 버튼으로 오갈 뿐 접근 제어가 없고, 8080 포트 자체는 보안그룹에서 특정 IP로만 제한돼 있다(관리자 API가 인터넷에 그대로 노출되진 않지만, 애플리케이션 레벨 인증은 없다는 뜻).
+- 도메인·HTTPS는 의도적으로 안 쓴다 — Elastic IP + HTTP로만 운영한다.
+</details>
+<details>
+<summary>디렉토리 구조</summary>
 
 ```
 src/
 ├── api/
 │   ├── adminApi.ts             # 관리자 API. 경로는 백엔드 컨트롤러를 그대로 옮긴 것
-│   └── customerApi.ts          # 고객 API. 발급 예약 하나뿐 (목록/재고는 adminApi 재사용)
+│   └── customerApi.ts          # 고객 API. 
 │
 ├── types/
 │   └── domain.ts               # 백엔드 DTO(record)에 1:1로 맞춘 타입. LOAD_TEST_SCENARIOS(V1~V6) 포함
 │
 ├── hooks/                      # TanStack Query 훅
-│   ├── useCoupons.ts            # 쿠폰 목록 조회 / 생성 (관리자·고객 대시보드 공용)
+│   ├── useCoupons.ts            # 쿠폰 목록 조회 / 생성 / 삭제
 │   ├── useStock.ts              # 실시간 재고 폴링 (부하테스트 중 1초, 평소 5초)
 │   ├── useIssues.ts             # [리스트] 탭 발급 이력 페이지네이션
 │   ├── useIssueResultCounts.ts  # Redis 발급 결과 집계 + DB 적재 진행 폴링
-│   ├── useLoadTest.ts           # 부하테스트 실행/최근 실행 조회/초기화 (쿠폰별 runId 기억)
-│   ├── useVerification.ts       # 정합성 검증 시작 + 완료까지 2초 폴링 (쿠폰별 runId 기억)
+│   ├── useNotificationCounts.ts # 발급 성공 알림 발송 현황 폴링
+│   ├── useDlqFailures.ts        # DLQ 최종 실패 목록 조회 + 재시도
+│   ├── useLifecycle.ts          # 만료 스케줄러 on/off 조회·변경
+│   ├── useLoadTest.ts           # 부하테스트 실행/최근 실행 조회 (쿠폰별 runId 기억)
+│   ├── useVerification.ts       # 정합성 검증 시작 + 완료까지 폴링 (쿠폰별 runId 기억)
 │   └── useCustomerIssue.ts      # 고객 쿠폰 발급 mutation
 │
 ├── lib/
 │   ├── http.ts                  # axios + ApiResponse 봉투 해제 + ApiError 변환
-│   ├── dateUtils.ts             # 타임존 없는 LocalDateTime을 KST로 읽어 포맷 (날짜/시각 분리 포맷 포함)
+│   ├── dateUtils.ts             # 타임존 없는 LocalDateTime을 KST로 읽어 포맷
 │   ├── lastCoupon.ts            # 관리자가 마지막으로 본 couponId 기억 (목록 실패 시 폴백용)
 │   ├── memberId.ts              # 고객 브라우저별 memberId를 하나 뽑아 localStorage에 고정
 │   └── utils.ts                 # cn() (clsx + tailwind-merge)
 │
 ├── components/
 │   ├── ui/                      # shadcn 스타일 프리미티브 (button, card, table, tabs, dialog, meter ...)
+│   ├── brand/
+│   │   ├── LgUplusLogo.tsx       # LG U+ 워드마크 (텍스트+브랜드컬러로 대체)
+│   │   └── CoffeeIllustration.tsx # 커피컵 SVG 일러스트 (대체)
 │   └── layout/
-│       ├── AppShell.tsx          # 관리자 상단 헤더("MOCOU Admin" + 고객 화면 버튼) + Outlet
-│       └── CustomerShell.tsx     # 고객 상단 헤더("MOCOU" + 관리자 화면 버튼) + Outlet
+│       ├── AppShell.tsx          # 관리자 헤더 + 핑크 톤 배경 + Outlet
+│       └── CustomerShell.tsx     # 고객 헤더 + 로고·커피 히어로 배너 + Outlet
 │
 ├── features/
 │   ├── coupon/components/
@@ -56,30 +88,35 @@ src/
 │   │   ├── CouponListView.tsx       # 관리자 대시보드 리스트(테이블) 뷰
 │   │   ├── CreateCouponDialog.tsx   # 쿠폰 추가 폼 (종료일시·이름은 선택)
 │   │   ├── StockPanel.tsx           # 실시간 재고: 히어로 수치 + 미터 + KPI 타일 4개
-│   │   └── CouponStatusBadge.tsx    # SCHEDULED / OPEN / CLOSED
+│   │   ├── CouponStatusBadge.tsx    # SCHEDULED / OPEN / CLOSED
+│   │   ├── AdminFeaturesPanel.tsx   # "관리자 기능" 토글로 접어둔 패널 (만료 스케줄러 + DLQ 관리)
+│   │   ├── ExpirationSchedulerToggle.tsx # 만료 스케줄러 on/off 버튼
+│   │   └── DlqFailurePanel.tsx      # DLQ 최종 실패 목록 + 재시도 (쿠폰 ID 직접 입력)
 │   ├── loadtest/components/
-│   │   ├── LoadTestTab.tsx          # [실행] 탭: 시나리오 6종(V1~V6) 중 택1 드롭다운, 시작·초기화, 결과
+│   │   ├── LoadTestTab.tsx          # [실행] 탭: 시나리오 6종(V1~V6) 중 택1, 시작, 결과
 │   │   ├── IssueResultPanel.tsx     # Redis 발급 집계 + DB 적재 진행 (거절 사유 내역 포함)
+│   │   ├── NotificationCountsPanel.tsx # 발급 성공 알림 발송 현황(전체/완료/대기/실패)
 │   │   └── RunStatusBadge.tsx       # PENDING / RUNNING / SYNCING / SUCCESS / FAILED
 │   ├── issues/components/
-│   │   ├── IssueListTab.tsx         # [리스트] 탭: 발급 건(회원정보는 서버에서 마스킹되어 옴)
+│   │   ├── IssueListTab.tsx         # [리스트] 탭: 발급 건 + 예약 순번/발급 시 잔여재고
 │   │   └── IssueStatusBadge.tsx     # UNISSUED / ISSUED / USED / EXPIRED
 │   └── consistency/components/
 │       ├── ConsistencyTab.tsx       # [정합성] 탭: 검증 실행(단일 버튼) → 폴링 → 규칙별 결과
-│       ├── RuleResultCard.tsx       # 규칙 1종 결과 + 위반 상세 드릴다운
+│       ├── RuleResultCard.tsx       # 규칙 1종 결과 + 위반 상세 드릴다운 (9종 규칙)
 │       └── VerdictBadge.tsx         # PASS / FAIL / ERROR / 진행중
 │
 ├── pages/
-│   ├── DashboardPage.tsx           # "/" 관리자 쿠폰 목록 (기간 필터, 갤러리↔리스트, 쿠폰 추가)
-│   ├── CouponDetailPage.tsx        # "/coupons/:couponId" 재고 패널 + [실행]/[리스트]/[정합성] 탭
+│   ├── DashboardPage.tsx           # "/" 관리자 쿠폰 목록 + "관리자 기능" 토글 + 쿠폰 추가
+│   ├── CouponDetailPage.tsx        # "/coupons/:couponId" 재고 패널 + 회차 삭제 + 탭 3종
 │   └── customer/
 │       ├── CustomerDashboardPage.tsx # "/shop" 예정·진행중 쿠폰 카드 스택 (종료 회차는 숨김)
 │       └── CustomerCouponPage.tsx    # "/shop/coupons/:couponId" 발급 화면, [쿠폰 받기] 버튼
 │
 ├── App.tsx / main.tsx / index.css
 ```
-
-## 라우팅
+</details>
+<details>
+<summary>라우팅</summary>
 
 | 경로 | 레이아웃 | 화면 |
 |---|---|---|
@@ -88,106 +125,57 @@ src/
 | `/shop` | `CustomerShell` | 고객 대시보드 (카드 스택) |
 | `/shop/coupons/:couponId` | `CustomerShell` | 고객 발급 화면 |
 | 그 외 | — | `/`로 리다이렉트 |
-
-두 레이아웃 다 인증이 없다 — 헤더의 버튼(관리자 → "고객 화면 보기", 고객 → "관리자 화면")으로
-그냥 오갈 뿐, 접근 제어는 없다.
-
-## 연동한 백엔드 API
+</details>
+<details>
+<summary>API 목록</summary>
 
 | 화면 | Method + Path | 백엔드 |
 |---|---|---|
 | 대시보드 목록 (관리자·고객 공용) | `GET /api/admin/coupons` | `admin/AdminCouponController` |
 | 쿠폰 추가 | `POST /api/admin/coupons` | `coupon/CouponRoundController` |
+| **회차 삭제** | `DELETE /api/admin/coupons/{couponId}` | 〃 |
 | 재고 조회 (관리자 패널·고객 발급 화면 공용) | `GET /api/admin/coupons/{couponId}/stock` | `admin/AdminCouponController` |
 | [리스트] | `GET /api/admin/coupons/{couponId}/issues?page=&size=` | 〃 |
 | [실행] 발급 결과 집계 | `GET /api/admin/coupons/{couponId}/issue-result-counts` | 〃 |
+| **알림 처리 현황** | `GET /api/admin/coupons/{couponId}/notification-counts` | 〃 |
+| **DLQ 최종 실패 목록** | `GET /api/admin/coupons/{couponId}/issue-dlq/failed` | 〃 |
+| **DLQ 재시도** | `POST /api/admin/coupons/{couponId}/issue-dlq/failed/{recordId}/retry` | 〃 |
 | [정합성] 시작 | `POST /api/admin/verifications?issueRunId=` | `consistency/VerificationController` |
 | [정합성] 조회 | `GET /api/admin/verifications/{runId}` | 〃 |
-| [실행] 초기화 | `POST /api/admin/load-test/reset?couponId=` | `loadtest/LoadTestResetController` |
 | [실행] 시작 | `POST /api/admin/load-tests` `{couponId, scenario}` | `loadtest/LoadTestExecutionController` |
 | [실행] 상태 조회 | `GET /api/admin/load-tests/{runId}` | 〃 |
+| **만료 스케줄러 조회/변경** | `GET`/`PUT /api/internal/lifecycle/expiration-scheduler` | `lifecycle/ExpirationSchedulerControlController` |
 | **고객 쿠폰 발급** | `POST /api/coupons/{couponId}/issues` `{memberId}` | `issue/CouponIssueReservationController` |
 
-`POST /api/coupon-issues/{issueId}/use`(쿠폰 사용 처리)는 화면이 없어 연동하지 않았다.
+**화면에서 안 쓰는 API**(구현은 돼 있지만 UI 트리거가 없음):
+- `POST /api/coupon-issues/{issueId}/use` — 쿠폰 사용 처리, 화면 없음
+</details>
 
-## 알아둘 것 — 공통
-
-- **모든 응답은 `ApiResponse` 봉투**(`{success, data, error, traceId, timestamp}`)로 온다.
-  `lib/http.ts` 인터셉터가 한 번만 벗겨내므로, API 함수와 화면은 알맹이만 다룬다.
-  에러는 백엔드 `ErrorCode`를 담은 `ApiError`로 바뀌어 던져진다.
-- **"이 쿠폰의 최근 실행"을 알려주는 목록 API가 없다.** 부하테스트(`useLoadTest`)와 정합성 검증
-  (`useVerification`) 둘 다, 시작시킨 `runId`를 **쿠폰별로 나눠** localStorage에 기억해뒀다가
-  그 ID로 상태를 폴링한다 (`mocou.lastLoadTestRunId.{couponId}`,
-  `mocou.lastVerificationRunId.{couponId}`). 여러 컴포넌트가 같은 값을 봐야 해서 `useState` 대신
-  TanStack Query 캐시에 얹었다 — 컴포넌트마다 `useState`를 두면 한쪽에서 갱신해도 나머지가 옛
-  값을 들고 있게 된다.
-
-## 알아둘 것 — 관리자 화면
-
-- **쿠폰 생성 요청은 `{ totalQuantity, openAt, closeAt?, name? }`다.** `closeAt`을 비우면 오픈 당일
-  23:59:59, `name`을 비우면 서버가 채운다. 응답이 왔다는 것은 Redis 초기화까지 끝났다는 뜻이라
-  바로 발급이 가능하다.
-- **부하테스트 시나리오는 6종(V1~V6)으로 고정돼 있다** (`types/domain.ts`의
-  `LOAD_TEST_SCENARIOS`). VU·ramp-up을 자유 입력받지 않고 시나리오 하나를 고르면 그 값 그대로
-  k6에 전달된다. 대상 쿠폰은 OPEN 상태면서 발급 이력이 없어야 한다.
-- **실행 상태는 4단계다**: `RUNNING`(k6 실행 중) → `SYNCING`(k6는 끝났고 Redis→DB 비동기 적재를
-  기다리는 중) → `SUCCESS`/`FAILED`. `SYNCING` 동안의 수치는 아직 DB에 다 반영되지 않은 상태라
-  정합성 비교에 쓸 수 없다.
-- **정합성 검증은 `issueRunId`를 줘도 검사 범위를 좁히지 않는다.** 백엔드가 그 값을 어디에도
-  필터 조건으로 쓰지 않고, `verification_run` 행에 "이 부하테스트 직후에 돈 검증"이라는 시점
-  태그로만 남긴다 — 실제 검사는 항상 DB 전체(더미데이터 포함 약 300만 건)다. 그래서 버튼은
-  하나(`정합성 검증 실행`)뿐이고, 최근 부하테스트가 있으면 그 `runId`를 조용히 같이 보내
-  결과 카드에 `발급 실행 #M 직후 실행됨`으로만 표시한다.
-- **정합성 검증은 비동기다.** `POST`는 `runId`만 주고 202로 끝나며, 완료까지 1~2분 걸린다.
-  탭이 숨어도 폴링이 멈추지 않도록 `refetchIntervalInBackground: true`를 켜뒀다.
-- **초기화(`load-test/reset`)는 검증 이력까지 지운다.** 그래서 들고 있던 `runId`가 죽을 수
-  있는데, `VERIFICATION_RUN_NOT_FOUND`/부하테스트 404가 오면 에러를 띄우는 대신 조용히 버린다.
-  종료된 회차를 초기화 대상으로 지목하면 `LOAD_TEST_TARGET_CLOSED`(409)로 거부된다.
-- **대시보드 기간 필터**(최근 1개월/최근 1년/전체)는 목록 API에 필터 파라미터가 없어
-  `openAt` 기준으로 클라이언트에서 걸러낸다. 기본값은 `전체`.
-- **발급 결과는 Redis 누적 집계다.** `reserved`(Lua가 수락) / `failed`(거절 6종) /
-  `dbPersisted`(실제 coupon_issue 행) / `pendingOrRetrying`(아직 DB 미반영) /
-  `compensated`(예약 원복)를 나눠 보여준다. 거절은 시스템이 제대로 막은 결과라 붉게 칠하지
-  않는다 — 재고 소진은 초과 발급을, 중복 발급은 1인 1매를 막았다는 증거다.
-- **local 프로필은 동기화 컨슈머가 꺼져 있다**(`mocou.issue.sync.enabled`는 prod에서만 true).
-  그래서 로컬에서는 `dbPersisted`가 0에 머물고 `pendingOrRetrying`이 줄지 않는다. 버그가 아니다.
-
-## 알아둘 것 — 고객 화면
-
-- **로그인이 없다.** "내가 누구인지"를 서버가 모르는 채로 발급 API(`{memberId}`)를 불러야 해서,
-  `lib/memberId.ts`가 브라우저마다 회원 ID를 하나 뽑아 localStorage에 고정해두고 그대로 실어
-  보낸다. 같은 브라우저로 두 번 받으면 서버의 1인 1매 방어(`DUPLICATE`)가 그대로 걸린다.
-  뽑는 범위(1~1,000,000)는 datagen이 심어둔 회원 ID 범위와 맞춘 것이라, 이 범위를 벗어나면
-  `NOT_MEMBER`(404)가 난다.
-- **대시보드엔 `CLOSED` 회차를 안 보여준다.** 목록 API가 과거 회차까지 전부 내려주므로,
-  `CustomerDashboardPage`가 `SCHEDULED`/`OPEN`만 클라이언트에서 걸러 카드로 보여준다.
-- **[쿠폰 받기] 버튼은 재고와 상태로만 활성화 여부를 정한다.** `stock.status === 'OPEN' &&
-  stock.remainingQuantity > 0`일 때만 눌리고, 그 외엔 회색으로 비활성화되며 이유를 라벨로
-  보여준다(`아직 발급 전입니다` / `발급이 종료되었습니다` / `품절되었습니다`).
-- 발급 성공/실패 토스트 메시지는 서버가 이미 사람이 읽을 문장으로 내려주는 걸 그대로 쓴다.
-
-## 실행
+## 로컬에서 개발하기
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173, /api 요청은 localhost:8080으로 프록시
+npm run dev      # http://localhost:5173, /api 요청은 vite.config.ts가 localhost:8080으로 프록시
 npm run build    # tsc -b && vite build
 npm run lint     # oxlint
 ```
 
-백엔드가 함께 떠 있어야 한다 (`cd ../backend && ./gradlew bootRun`, MySQL/Redis는 docker compose).
+백엔드가 같이 떠 있어야 한다:
+```bash
+cd ../backend && ./gradlew bootRun   # MySQL/Redis는 docker compose로 먼저 띄워둘 것
+```
 
-## 배포 (수동)
+`VITE_API_BASE_URL`을 `.env`에 지정하면 그 주소로 직접 요청한다. 비워두면 `/api`로 요청 → `vite.config.ts`의 proxy가 `localhost:8080`으로 넘긴다.
 
-프론트는 CI가 없어서 로컬 dev 서버가 EC2 백엔드를 보도록 함 — `vite.config.ts`의 proxy target을
-`http://localhost:8080`에서 app-ec2 주소로 바꾸면 저장할 때마다 HMR로 즉시 반영된다.
-`npm run deploy`(`scripts/deploy.sh`)는 **팀원에게 보여줘야 할 때만** 손으로 돌린다.
+## 서버에 적용하기 (배포)
 
-app-ec2는 `KeyName: None`으로 떠 있다 — EC2에서 발급한 키 페어가 없다. 그래서 22번 포트를
-열고 `.pem`으로 붙는 대신, **SSM 세션을 SSH 터널로 쓴다.** 보안그룹에 22를 열 필요가 없다.
+프론트는 CI가 없다 — GitHub Actions는 **백엔드**만 자동 배포하고(`backend/.github/workflows/cd.yml`, `main` push 시 이미지 빌드 → SSM Run Command로 EC2에서 `docker compose pull && up -d`), 프론트 빌드 산출물은 **손으로** EC2에 올린다.
 
-### 최초 1회 설정
+평소 개발 중엔 배포할 필요가 없다 — `vite.config.ts`의 proxy target을 `localhost:8080`에서 app-ec2 주소로 바꾸면 로컬 dev 서버로 EC2 백엔드를 바로 붙여볼 수 있고, 저장할 때마다 HMR로 즉시 반영된다. `npm run deploy`는 **팀원에게 실제 배포된 화면을 보여줘야 할 때만** 손으로 돌린다.
 
+app-ec2는 키 페어 없이 떠 있다 — 22번 포트를 열고 `.pem`으로 붙는 대신 **SSM 세션을 SSH 터널로 쓴다.**
+
+### 최초 1회 설정 (SSM 설정)
 ```bash
 # 1. 배포 전용 키 생성
 ssh-keygen -t ed25519 -f ~/.ssh/mocou-deploy -N ""
@@ -223,10 +211,19 @@ npm run deploy
 `scripts/deploy.sh`가 하는 일:
 1. `npm run build` — `dist/` 생성
 2. `ssh mocou-app`으로 `/var/www/mocou/dist` 디렉터리 준비 (최초 1회만 실질적인 변화)
-3. `rsync -e ssh --delete`로 `dist/`를 그 경로에 동기화 — `scp -r`이 아니라 rsync를 쓰는
-   이유는, vite 빌드 산출물 파일명에 콘텐츠 해시가 붙어(`index-AbC123.js`) 빌드마다 이름이
-   바뀌기 때문이다. `scp -r`은 새 파일만 얹고 이전 빌드의 죽은 파일을 그대로 둬서 EC2에
-   안 쓰는 JS/CSS가 계속 쌓이지만, `--delete`는 로컬에 없는 원격 파일을 지워 항상 "지금
-   빌드"와 같은 상태로 맞춘다.
+3. `rsync -e ssh --delete`로 `dist/`를 그 경로에 동기화 — vite 빌드 산출물은 파일명에 콘텐츠
+   해시가 붙어(`index-AbC123.js`) 빌드마다 이름이 바뀐다. `scp -r`은 새 파일만 얹고 예전 빌드의
+   죽은 파일을 그대로 둬서 EC2에 안 쓰는 JS/CSS가 계속 쌓이지만, `rsync --delete`는 로컬에
+   없는 원격 파일을 지워 항상 "지금 빌드"와 같은 상태로 맞춘다.
 
 nginx는 파일을 디스크에서 직접 읽으므로 배포 후 별도 reload가 필요 없다.
+
+### DB 직접 접속(DataGrip 등)
+
+MySQL은 `127.0.0.1:3306`에만 바인딩돼 있어 EC2 밖에서 직접 못 붙는다. SSM 터널을 열어야 한다:
+
+```bash
+ssh -f -N -L 13306:127.0.0.1:3306 mocou-app
+```
+
+EC2를 껐다 켜면 이 터널도 같이 죽으니, 재기동 후 다시 실행해야 한다.
