@@ -220,11 +220,11 @@ export interface AdminCouponIssueResultCounts {
   issueClosed: number
   stockNotInitialized: number
   metadataNotInitialized: number
-  /** DB 적재 재시도 한도를 넘겨 Redis 예약을 실제로 원복한 횟수 */
-  compensated: number
+  /** 복구 재시도까지 소진해 DLQ로 넘어간 최종 실패 건수. 관리자가 재시도해야 한다(PR #222) */
+  dlqFailed: number
   /** 해당 쿠폰의 coupon_issue 행 수 */
   dbPersisted: number
-  /** max(0, reserved - dbPersisted - compensated) */
+  /** max(0, reserved - dbPersisted - dlqFailed) */
   pendingOrRetrying: number
 }
 

@@ -105,7 +105,7 @@ export function IssueResultPanel({
 }) {
   const hasTraffic = counts.totalRequests > 0
   const hasPending = counts.pendingOrRetrying > 0
-  const hasCompensated = counts.compensated > 0
+  const hasDlqFailed = counts.dlqFailed > 0
   const notReadyCount = counts.stockNotInitialized + counts.metadataNotInitialized
 
   return (
@@ -138,7 +138,7 @@ export function IssueResultPanel({
                   {counts.totalRequests.toLocaleString()}
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  전체 요청 = 예약 + 거절 (보상은 새 요청이 아니라 합계에서 빠집니다)
+                  전체 요청 = 예약 + 거절 (DLQ 최종 실패는 새 요청이 아니라 합계에서 빠집니다)
                 </span>
               </div>
               <StackedMeter
@@ -158,7 +158,7 @@ export function IssueResultPanel({
                 segments={[
                   { label: 'DB 적재 완료', value: counts.dbPersisted, color: 'var(--success)' },
                   { label: '처리·재시도 중', value: counts.pendingOrRetrying, color: 'var(--warning)' },
-                  { label: '보상 완료', value: counts.compensated, color: 'var(--destructive)' },
+                  { label: 'DLQ 최종 실패', value: counts.dlqFailed, color: 'var(--destructive)' },
                 ]}
               />
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -171,19 +171,20 @@ export function IssueResultPanel({
                   tone={hasPending ? 'warning' : undefined}
                 />
                 <Tile
-                  label="보상 완료"
-                  value={counts.compensated}
-                  hint={hasCompensated ? '재고·발급자 원복됨' : '원복 없음'}
-                  tone={hasCompensated ? 'warning' : undefined}
+                  label="DLQ 최종 실패"
+                  value={counts.dlqFailed}
+                  hint={hasDlqFailed ? '관리자 재시도 필요' : '실패 없음'}
+                  tone={hasDlqFailed ? 'warning' : undefined}
                 />
               </div>
 
-              {/* 상태는 색만으로 말하지 않는다. 원복·대기·완료를 뭉뚱그리지 않는다 */}
-              {hasCompensated && (
+              {/* 상태는 색만으로 말하지 않는다. 대기·최종실패·완료를 뭉뚱그리지 않는다 */}
+              {hasDlqFailed && (
                 <p className="flex items-center gap-1.5 text-xs text-warning-foreground">
                   <AlertTriangleIcon className="size-3.5 shrink-0" />
-                  DB 반영 재시도 한도를 넘겨 예약 {counts.compensated.toLocaleString()}건이
-                  원복됐습니다 — 회원이 issued-members에서 빠지고 재고가 되돌아갔습니다.
+                  복구 재시도를 다 소진해 {counts.dlqFailed.toLocaleString()}건이 DLQ로
+                  넘어갔습니다 — 자동으로 해결되지 않으니, 대시보드 상단 "관리자 기능"의
+                  DLQ 관리에서 재시도해야 합니다.
                 </p>
               )}
               {hasPending && (
@@ -194,10 +195,10 @@ export function IssueResultPanel({
                   (<code className="font-mono">mocou.issue.sync.enabled</code>).
                 </p>
               )}
-              {!hasCompensated && !hasPending && (
+              {!hasDlqFailed && !hasPending && (
                 <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <CheckIcon className="size-3.5 shrink-0" />
-                  수락된 예약이 모두 DB에 적재됐고 원복된 건이 없습니다.
+                  수락된 예약이 모두 DB에 적재됐고 DLQ 최종 실패도 없습니다.
                 </p>
               )}
             </div>
