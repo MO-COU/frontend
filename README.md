@@ -102,7 +102,7 @@ src/
 │   │   └── IssueStatusBadge.tsx     # UNISSUED / ISSUED / USED / EXPIRED
 │   └── consistency/components/
 │       ├── ConsistencyTab.tsx       # [정합성] 탭: 검증 실행(단일 버튼) → 폴링 → 규칙별 결과
-│       ├── RuleResultCard.tsx       # 규칙 1종 결과 + 위반 상세 드릴다운 (9종 규칙)
+│       ├── RuleResultCard.tsx       # 규칙 1종 결과 + 위반 상세 드릴다운 (규칙 8종)
 │       └── VerdictBadge.tsx         # PASS / FAIL / ERROR / 진행중
 │
 ├── pages/
@@ -149,6 +149,7 @@ src/
 
 **화면에서 안 쓰는 API**(구현은 돼 있지만 UI 트리거가 없음):
 - `POST /api/coupon-issues/{issueId}/use` — 쿠폰 사용 처리, 화면 없음
+- `POST /api/admin/load-test/reset` — 부하 테스트 되돌리기, `adminApi.ts`에 정의만 있고 화면에서 호출하지 않음
 </details>
 
 ## 로컬에서 개발하기
@@ -217,13 +218,3 @@ npm run deploy
    없는 원격 파일을 지워 항상 "지금 빌드"와 같은 상태로 맞춘다.
 
 nginx는 파일을 디스크에서 직접 읽으므로 배포 후 별도 reload가 필요 없다.
-
-### DB 직접 접속(DataGrip 등)
-
-MySQL은 `127.0.0.1:3306`에만 바인딩돼 있어 EC2 밖에서 직접 못 붙는다. SSM 터널을 열어야 한다:
-
-```bash
-ssh -f -N -L 13306:127.0.0.1:3306 mocou-app
-```
-
-EC2를 껐다 켜면 이 터널도 같이 죽으니, 재기동 후 다시 실행해야 한다.
